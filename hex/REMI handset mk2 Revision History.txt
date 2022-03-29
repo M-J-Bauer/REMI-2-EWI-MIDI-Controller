@@ -1,0 +1,31 @@
+REMI handset mk2 -- EWI MIDI Controller -- Revision History
+````````````````````````````````````````````````````````````
+v1.0.00  27-MAR-2022
+````````````````````
+This revision sends MIDI pressure data as a 7-bit value in MIDI CC02 messages. 
+There is no option to send 14-bit pressure data. (Parameter 'exp2b' not implemented?)
+There is only one parameter set, but Mode switch can override default settings.
+__________________________________________________________________________________________
+
+...
+
+
+__________________________________________________________________________________________
+
+To Do:
+``````
+1. Add config. option (param) to set MIDI pressure message data to either 7 or 14 bits.
+
+2. Provide 2 separate sets of config. param's. The 'Mode' switch position will select 
+   which parameter set is loaded (active) at start-up and subsequently...
+   - The Mode switch may be moved anytime to select the other set of param's.
+   - If a CLI command is used to modify a parameter value, the new value will saved 
+     in the currently active parameter set, but not in the other set.
+
+The reason for the proposed revision is to allow the player to quickly and easily switch
+REMI messaging to suit one or other of two synthesizers which have different control 
+requirements. For example, synth #1 may be a "REMI Sound Module" and synth #2 may be a 
+VST running on a computer. 
+__________________________________________________________________________________________
+
+MJB
