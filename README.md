@@ -7,3 +7,7 @@ A low-cost ($10) MIDI-USB adapter allows the REMI to be used with a "virtual syn
 Makers looking for an "all-in-one" EWI design featuring battery operation, built-in sound synth and speaker, should consider the REMI 3.
 
 A complete description of the REMI project can be found here: http://www.mjbauer.biz/REMI_Intro.htm
+
+REMI 2 firmware is built using Microchip's MPLAB.X IDE with XC8 compiler (free downloads from Microchip's website).
+If you intend to modify or extend the firmware, you will need to install the full MPLAB.X IDE application. 
+Otherwise, you just need to install the PIC programmer application (IPE) on your computer.
