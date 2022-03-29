@@ -1,6 +1,6 @@
 # REMI 2 - EWI MIDI Controller
 Electronic Wind Instrument (EWI) - MIDI Controller using touch-pads for "keys" with recorder-like fingering scheme,
-based on PIC18F45K22 (or PIC18F45K22) micro-controller, designed as a DIY project for electronics hobbyists.
+based on PIC18F45K22 (or PIC18F25K22) micro-controller, designed as a DIY project for electronics hobbyists.
 
 REMI 2 is a simple MIDI controller with standard MIDI OUT connection (5-pin DIN socket). It does not have a built-in sound synthesizer.
 A low-cost ($10) MIDI-USB adapter allows the REMI to be used with a "virtual synthesizer" (software app) running on a computer or mobile device.
