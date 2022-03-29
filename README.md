@@ -6,4 +6,4 @@ REMI 2 is a simple MIDI controller with standard MIDI OUT connection (5-pin DIN 
 A low-cost ($10) MIDI-USB adapter allows the REMI to be used with a "virtual synthesizer" (software app) running on a computer or mobile device.
 Makers looking for an "all-in-one" EWI design featuring battery operation, built-in sound synth and speaker, should consider the REMI 3.
 
-A complete description of the REMI 2 project can be found here: http://www.mjbauer.biz/Build_the_REMI_mk2.htm
+A complete description of the REMI project can be found here: http://www.mjbauer.biz/REMI_Intro.htm
