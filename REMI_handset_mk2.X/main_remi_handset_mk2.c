@@ -423,6 +423,7 @@ PRIVATE  void  NoteOnOffStateTask()
     static  uint8   noteNumPlaying;
     
     uint16  fingerPattern = m_TouchPadStates;
+    uint8   noteNumber = NoteNumberFromKeyPattern(fingerPattern);
     uint8   top3Fingers = (fingerPattern >> 5) & 7;  // Get LH1..LH3 into bits 2,1,0
     uint8   octavePads  = (fingerPattern >> 8) & 3;  // Extract OCT+, OCT-
     bool    isValidNote = (octavePads != 0) && (top3Fingers != 0);
@@ -430,8 +431,7 @@ PRIVATE  void  NoteOnOffStateTask()
     bool    sendNoteOn = 0;
     uint16  pressure_14b = ((uint16)m_Pressure_Hi << 7) + m_Pressure_Lo;
     uint8   velocity = m_Pressure_Hi; 
-    uint8   noteNumber;
-    uint8   ccnumber = g_Config.MidiExpressionCCnumber;
+    uint8   exprnCC = g_Config.MidiExpressionCCnumber;
     
     switch (m_NoteOnOffState)
     {
@@ -511,9 +511,9 @@ PRIVATE  void  NoteOnOffStateTask()
             {
                 if (g_Config.MidiExpressionCCnumber != 0)
                 {
-                    MIDI_SendControlChange(channel, ccnumber, m_Pressure_Hi);
-                    if (g_Config.Use2byteExpression) 
-                        MIDI_SendControlChange(channel, (ccnumber + 32), m_Pressure_Lo);
+                    MIDI_SendControlChange(channel, exprnCC, m_Pressure_Hi);
+                    if (g_Config.Send14bitExprnData) 
+                        MIDI_SendControlChange(channel, (exprnCC + 32), m_Pressure_Lo);
                 }
                 LastPressure = pressure_14b;
             }
@@ -729,8 +729,8 @@ void  InstrumentPresetSelect(uint8 preset)
     uint8  chan = g_Config.MidiBasicChannel;
     uint8  progNum = g_Config.PresetMidiProgram[preset];
     
-    // Send General MIDI program change command (ignored by REMI synth) 
-    MIDI_SendProgramChange(chan, progNum);
+    // Send General MIDI program change command, if enabled. (ignored by REMI synth) 
+    if (g_Config.MidiProgChangeEnabled) MIDI_SendProgramChange(chan, progNum);
     
     // Construct MIDI system exclusive 'PRESET' message...
     RemiPresetMsg[0]  = SYS_EXCLUSIVE_MSG;  // status byte
@@ -959,12 +959,13 @@ void  DefaultConfigData(void)
     
     g_Config.MidiBasicChannel = 1;
     g_Config.MidiSysExclMsgEnabled = 0;
+    g_Config.MidiProgChangeEnabled = 0;
     g_Config.MidiExpressionCCnumber = 2; 
     g_Config.MidiModulationCCnumber = 1;
     g_Config.MidiPressureInterval = 5;
     g_Config.MidiControllerInterval = 30;  
     
-    g_Config.Use2byteExpression = 0; 
+    g_Config.Send14bitExprnData = 0; 
     g_Config.LegatoModeEnabled = 0; 
     g_Config.VelocitySenseEnabled = 0;
     g_Config.PitchBendEnabled = 0;
@@ -1001,7 +1002,7 @@ void  SetConfigProfile(uint8 mode)
         g_Config.MidiModulationCCnumber = 1;
         g_Config.MidiPressureInterval = 5;
         g_Config.MidiControllerInterval = 30;  
-        g_Config.Use2byteExpression = 1; 
+        g_Config.Send14bitExprnData = 1; 
         g_Config.LegatoModeEnabled = 1; 
         g_Config.VelocitySenseEnabled = 0;
         g_Config.PitchBendEnabled = 0;
@@ -1013,7 +1014,7 @@ void  SetConfigProfile(uint8 mode)
         g_Config.MidiModulationCCnumber = 1;
         g_Config.MidiPressureInterval = 5;
         g_Config.MidiControllerInterval = 30;  
-        g_Config.Use2byteExpression = 0; 
+        g_Config.Send14bitExprnData = 0; 
         g_Config.LegatoModeEnabled = 0; 
         g_Config.VelocitySenseEnabled = 0;
         g_Config.PitchBendEnabled = 0;

@@ -20,7 +20,7 @@
 //
 #define BUILD_VER_MAJOR   1
 #define BUILD_VER_MINOR   0
-#define BUILD_VER_DEBUG   0
+#define BUILD_VER_DEBUG   2
 //
 // =======================================================================================
 
@@ -79,12 +79,13 @@ typedef struct Config_Params_Structure
 {
     uint8   MidiBasicChannel;         // MIDI OUT channel, range: 1..16 (default: 1)
     uint8   MidiSysExclMsgEnabled;    // MIDI SystemExclusive Messages Enabled (0)
+    uint8   MidiProgChangeEnabled;    // MIDI Program Change Messages Enabled (0)
     uint8   MidiExpressionCCnumber;   // MIDI Ctrl Change # for breath/pressure messages
     uint8   MidiModulationCCnumber;   // MIDI Ctrl Change # for Modulation CC messages
     uint8   MidiPressureInterval;     // MIDI pressure TX update interval (5..50 ms)
     uint8   MidiControllerInterval;   // MIDI modulation TX update interval (10..100 ms)
     
-    uint8   Use2byteExpression;       // MIDI expression CC msg uses 14 bit data (0)
+    uint8   Send14bitExprnData;       // Expression CC msg uses 14 bit data (0)
     uint8   LegatoModeEnabled;        // Legato Mode Enabled (1) [MODE switch override]
     uint8   VelocitySenseEnabled;     // Velocity sensing enabled (1)
     uint8   PitchBendEnabled;         // Pitch-Bend enabled (0)

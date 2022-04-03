@@ -125,7 +125,7 @@ void  Cmnd_config(int argCount, char * argVal[])
     uint16  value;
     uint8   isBadData = 0;
     
-    if (argVal[1][0] == '?' )  // help wanted
+    if (argVal[1][0] == '?' )  // help wanted   
     {
         putstr( "Usage #1:  config    | List config'n param's \n\n" );
         putstr( "Usage #2:  config <param> [=] <value>    | Set param. value \n" );
@@ -138,6 +138,8 @@ void  Cmnd_config(int argCount, char * argVal[])
         putstr("  Midi Basic Channel (1..16) \n");
         putstr("sysxen  ");  putDecimal(g_Config.MidiSysExclMsgEnabled, 4);
         putstr("  Midi Sys.Excl.Msg Enabled (0,1)\n");
+        putstr("prchen  ");  putDecimal(g_Config.MidiProgChangeEnabled, 4);
+        putstr("  Midi Prog. Change Enabled (0,1)\n");
         putstr("expcc   ");  putDecimal(g_Config.MidiExpressionCCnumber, 4);
         putstr("  Midi Expression CC number (0..31)\n");
         putstr("modcc   ");  putDecimal(g_Config.MidiModulationCCnumber, 4);
@@ -147,8 +149,8 @@ void  Cmnd_config(int argCount, char * argVal[])
         putstr("modint  ");  putDecimal(g_Config.MidiControllerInterval, 4); 
         putstr("  Midi Modulation Interval (10..100)\n");
 
-        putstr("exp2b   ");  putDecimal(g_Config.Use2byteExpression, 4);
-        putstr("  Send 2-byte Expression msg (0,1)\n");
+        putstr("exp14b   ");  putDecimal(g_Config.Send14bitExprnData, 4);
+        putstr("  Send 14-bit Expression data (0,1)\n");
         putstr("legen   ");  putDecimal(g_Config.LegatoModeEnabled, 4);
         putstr("  Legato Mode Enabled (0,1)\n");
         putstr("velsen  ");  putDecimal(g_Config.VelocitySenseEnabled, 4);
@@ -183,6 +185,8 @@ void  Cmnd_config(int argCount, char * argVal[])
             g_Config.MidiBasicChannel = value;
         else if (strmatch(nickname, "sysxen") && value <= 1)
             g_Config.MidiSysExclMsgEnabled = value;
+        else if (strmatch(nickname, "prchen") && value <= 1)
+            g_Config.MidiExpressionCCnumber = value;
         else if (strmatch(nickname, "expcc") && value < 32)
             g_Config.MidiExpressionCCnumber = value;
         else if (strmatch(nickname, "modcc") && value < 32)
@@ -191,8 +195,8 @@ void  Cmnd_config(int argCount, char * argVal[])
             g_Config.MidiPressureInterval = value;
         else if (strmatch(nickname, "modint") && value >= 10 && value <= 100)
             g_Config.MidiControllerInterval = value;
-        else if (strmatch(nickname, "exp2b") && value <= 1)
-            g_Config.Use2byteExpression = value;
+        else if (strmatch(nickname, "exp14b") && value <= 1)
+            g_Config.Send14bitExprnData = value;
         else if (strmatch(nickname, "padlay") && value <= 1)
             g_Config.TouchPadLayout = value;
         else if (strmatch(nickname, "fingsc") && value <= 1)
