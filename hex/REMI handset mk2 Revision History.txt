@@ -2,30 +2,53 @@ REMI handset mk2 -- EWI MIDI Controller -- Revision History
 ````````````````````````````````````````````````````````````
 v1.0.00  27-MAR-2022
 ````````````````````
-This revision sends MIDI pressure data as a 7-bit value in MIDI CC02 messages. 
-There is no option to send 14-bit pressure data. (Parameter 'exp2b' not implemented?)
-There is only one parameter set, but Mode switch can override default settings.
+This revision sends MIDI pressure data as 7-bit values in MIDI CC02 messages by default.
+
+There is only one parameter set. The 'Mode' switch operation is disabled.
+__________________________________________________________________________________________
+v1.0.02  03-APR-2022
+````````````````````
+Bug fix:  noteNumber not assigned in NoteOnOffStateTask()!
+
+Added config.param. "prchen" (boolean flag) = Enable MIDI Program Change messages.
+If enabled, a MIDI Program Change message will be sent whenever an instrument Preset
+is selected by pressing the PRESET button on the handset.
+MIDI Program Numbers corresponding to the 8 Presets can be set using the CLI "preset"
+command. (Type "preset ?" for help.)
+
+Changed param. nickname "exp2b" to "exp14b" = Enable 14-bit expression (pressure) data
+in MIDI Control Change messaging (i.e. CC02, CC07 or CC11, whichever is configured).
+If exp14b == 0 (disabled), then only a 7-bit (single-byte) CC data value is sent.
+
 __________________________________________________________________________________________
 
-...
+v1.2.xx  xx-APR-2022  [To Do]
+````````````````````
+Modified 'watch' command. Pressure and Modulation values are now raw ADC readings
+(10 bits, range 0 .. 1023).
+
+Simplified the console (CLI) code.  Superfluous command functions removed. 
+Combined into a single source file: console_cli.
 
 
 __________________________________________________________________________________________
 
 To Do:
 ``````
-1. Add config. option (param) to set MIDI pressure message data to either 7 or 14 bits.
-
-2. Provide 2 separate sets of config. param's. The 'Mode' switch position will select 
-   which parameter set is loaded (active) at start-up and subsequently...
+1. Provide 2 separate sets of config. param's. The 'Mode' switch position will select 
+   which parameter set is loaded (active) at start-up.  Additionally...
    - The Mode switch may be moved anytime to select the other set of param's.
    - If a CLI command is used to modify a parameter value, the new value will saved 
      in the currently active parameter set, but not in the other set.
 
 The reason for the proposed revision is to allow the player to quickly and easily switch
-REMI messaging to suit one or other of two synthesizers which have different control 
-requirements. For example, synth #1 may be a "REMI Sound Module" and synth #2 may be a 
+MIDI messaging to suit one or other of two synthesizers which have different control 
+requirements.  For example, synth #1 may be a "REMI Sound Module" and synth #2 may be a 
 VST running on a computer. 
+
+2. Support pitch bend sensor using I2C accelerometer chip.
+
+
 __________________________________________________________________________________________
 
 MJB
