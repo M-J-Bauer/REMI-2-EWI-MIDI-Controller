@@ -22,29 +22,33 @@ If exp14b == 0 (disabled), then only a 7-bit (single-byte) CC data value is sent
 
 __________________________________________________________________________________________
 
-v1.2.xx  xx-APR-2022  [To Do]
+v1.2.05  05-APR-2022
 ````````````````````
-Modified 'watch' command. Pressure and Modulation values are now raw ADC readings
-(10 bits, range 0 .. 1023).
+As above, plus...
+
+Added DSP smoothing filter to pressure sensor ADC readings to remove noise.
 
 Simplified the console (CLI) code.  Superfluous command functions removed. 
 Combined into a single source file: console_cli.
 
+Deleted config.param. "modncc" (modulation CC number).  Now fixed at CC01.
+
+Bug fix: Command "diag -p" now shows correct MIDI pressure data in quiescent state.
 
 __________________________________________________________________________________________
 
-To Do:
-``````
+To Do: [future revision]
+`````````````````````````
 1. Provide 2 separate sets of config. param's. The 'Mode' switch position will select 
-   which parameter set is loaded (active) at start-up.  Additionally...
+   which parameter set is loaded (active) at start-up.  Plus...
    - The Mode switch may be moved anytime to select the other set of param's.
    - If a CLI command is used to modify a parameter value, the new value will saved 
      in the currently active parameter set, but not in the other set.
 
-The reason for the proposed revision is to allow the player to quickly and easily switch
-MIDI messaging to suit one or other of two synthesizers which have different control 
-requirements.  For example, synth #1 may be a "REMI Sound Module" and synth #2 may be a 
-VST running on a computer. 
+   Reason for the proposed revision is to allow the player to quickly and easily switch
+   MIDI messaging to suit one or other of two synthesizers which have different control 
+   requirements.  For example, synth #1 may be a "REMI Sound Module" and synth #2 may be
+   a VST synth running on a computer. 
 
 2. Support pitch bend sensor using I2C accelerometer chip.
 
