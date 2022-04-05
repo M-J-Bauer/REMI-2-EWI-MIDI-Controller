@@ -4,13 +4,13 @@
     <logicalFolder name="HeaderFiles"
                    displayName="Header Files"
                    projectFiles="true">
-      <itemPath>console.h</itemPath>
       <itemPath>gendef.h</itemPath>
       <itemPath>EUSART_drv.h</itemPath>
       <itemPath>low_level.h</itemPath>
       <itemPath>touch_sense.h</itemPath>
       <itemPath>main_remi_handset_mk2.h</itemPath>
       <itemPath>MIDI_comms_lib.h</itemPath>
+      <itemPath>console.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"
@@ -19,13 +19,12 @@
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
-      <itemPath>console.c</itemPath>
       <itemPath>EUSART_drv.c</itemPath>
       <itemPath>low_level.c</itemPath>
-      <itemPath>app_commands.c</itemPath>
       <itemPath>touch_sense.c</itemPath>
       <itemPath>MIDI_comms_lib.c</itemPath>
       <itemPath>main_remi_handset_mk2.c</itemPath>
+      <itemPath>console.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -45,9 +44,9 @@
         <targetDevice>PIC18F45K22</targetDevice>
         <targetHeader></targetHeader>
         <targetPluginBoard></targetPluginBoard>
-        <platformTool>noID</platformTool>
+        <platformTool>PICkit3PlatformTool</platformTool>
         <languageToolchain>XC8</languageToolchain>
-        <languageToolchainVersion>2.31</languageToolchainVersion>
+        <languageToolchainVersion>2.36</languageToolchainVersion>
         <platform>3</platform>
       </toolsSet>
       <packs>
@@ -101,7 +100,7 @@
         <property key="optimization-debug" value="false"/>
         <property key="optimization-invariant-enable" value="false"/>
         <property key="optimization-invariant-value" value="16"/>
-        <property key="optimization-level" value="9"/>
+        <property key="optimization-level" value="-O1"/>
         <property key="optimization-speed" value="false"/>
         <property key="optimization-stable-enable" value="false"/>
         <property key="pack-struct" value="true"/>
@@ -168,6 +167,7 @@
                   value="Press to browse for a specific firmware version"/>
         <property key="ToolFirmwareOption.UseLatestFirmware" value="true"/>
         <property key="debugoptions.useswbreakpoints" value="false"/>
+        <property key="firmware.download.all" value="false"/>
         <property key="hwtoolclock.frcindebug" value="false"/>
         <property key="memories.aux" value="false"/>
         <property key="memories.bootflash" value="true"/>
