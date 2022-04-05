@@ -15,6 +15,9 @@
 #define F_OSC_MHz    (16)        // MCU clock freq. (MHz)
 #define _XTAL_FREQ  16000000     // K22 instruction cycle time is 4 x OSC period.
 
+#ifdef _PIC18F25K22_H_
+#define FLASH_DATA_BLOCK_BEG   0x7F80
+#endif
 #ifdef _PIC18F44K22_H_
 #define FLASH_DATA_BLOCK_BEG   0x3F80
 #endif
@@ -87,6 +90,8 @@
 #define TESTPOINT_TP2_SET_HI()    LATAbits.LATA6 = 1
 #define TESTPOINT_TP2_SET_LO()    LATAbits.LATA6 = 0
 #endif
+
+#define milliseconds()    millisecTimer()   // alias
 
 // Global signals for Background Task Executive (in main.c)
 extern volatile bool   v_RTI_flag_1ms_task;

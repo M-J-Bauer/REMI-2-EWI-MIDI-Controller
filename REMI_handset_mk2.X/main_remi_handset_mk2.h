@@ -19,8 +19,8 @@
 //                       FIRMWARE VERSION NUMBER AND BUILD OPTIONS
 //
 #define BUILD_VER_MAJOR   1
-#define BUILD_VER_MINOR   0
-#define BUILD_VER_DEBUG   2
+#define BUILD_VER_MINOR   2
+#define BUILD_VER_DEBUG   5
 //
 // =======================================================================================
 
@@ -33,10 +33,6 @@
 #define LAYOUT_WITH_PAD_AT_LH4    1    // Sylphyo-style layout (Pad at LH4)
 
 #define NOTE_ON_VELOCITY_DELAY   10    // Delay (ms) from note trigger to get velocity
-
-// Possible values for handset m_OperatingMode:
-#define GEN_SYNTH_MODE      'G'   // "Generic synth" operating mode
-#define REMI_SYNTH_MODE     'R'   // "REMI synth" operating mode
 
 // MIDI System Exclusive message types unique to REMI...
 #define REMI_PRESET_MSG   0x07     // 'REMI PRESET' msg type (set Preset #)
@@ -81,7 +77,6 @@ typedef struct Config_Params_Structure
     uint8   MidiSysExclMsgEnabled;    // MIDI SystemExclusive Messages Enabled (0)
     uint8   MidiProgChangeEnabled;    // MIDI Program Change Messages Enabled (0)
     uint8   MidiExpressionCCnumber;   // MIDI Ctrl Change # for breath/pressure messages
-    uint8   MidiModulationCCnumber;   // MIDI Ctrl Change # for Modulation CC messages
     uint8   MidiPressureInterval;     // MIDI pressure TX update interval (5..50 ms)
     uint8   MidiControllerInterval;   // MIDI modulation TX update interval (10..100 ms)
     
@@ -121,9 +116,8 @@ int16   GetPitchBendData();
 bool    isPresetButtonPressed();
 void    InstrumentPresetSelect(uint8 preset);
 
-bool    FetchConfigData();
 void    DefaultConfigData(void);
-void    SetConfigProfile(uint8 mode);
+bool    FetchConfigData();
 void    StoreConfigData();
 uint16  CheckConfigData();
 

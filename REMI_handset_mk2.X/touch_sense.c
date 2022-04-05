@@ -137,7 +137,7 @@ void  TouchPadSetThreshold(uint8 adc_count)
  */
 void  TouchPadScan()
 {
-    static init_done = 0;
+    static bool init_done = 0;
     static uint8  TouchOnCount[TOUCH_PADS_MAX];   // count of touch 'ON' (low) readings
     static uint8  TouchOffCount[TOUCH_PADS_MAX];  // count of touch 'OFF' (high) readings
     uint8  pad;

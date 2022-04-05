@@ -375,30 +375,38 @@ PRIVATE  uint8  NoteNumberFromKeyPattern(uint16 fingerPattern)
 
 
 /*****
- * Function:      Determine 14-bit pressure level from the pressure sensor raw ADC reading.
- *                May be used also to find MIDI velocity value from pressure.
+ * Function:  Determine 14-bit pressure level from the pressure sensor raw ADC reading.
+ *            May be used also to find MIDI velocity value from pressure.
+ *            Called at regular periodic intervals, Ts = 5ms.
  *
- * Outputs:       (uint8) m_Pressure_Hi = MIDI pressure High byte, or Velocity (0..127)
- *                (uint8) m_Pressure_Lo = MIDI pressure Low byte (0..127)
+ * Outputs:   (uint8) m_Pressure_Hi = MIDI pressure High byte, or Velocity (0..127)
+ *            (uint8) m_Pressure_Lo = MIDI pressure Low byte (0..127)
  *
- * Note:          The function assumes a linear relationship between raw pressure reading
- *                and MIDI pressure (or velocity) value. The external MIDI sound module
- *                should apply an exponential transfer function between MIDI pressure and
- *                audio output amplitude (to compensate for perceived loudness).
+ * Note 1:    The function assumes a linear relationship between raw pressure reading
+ *            and MIDI pressure (or velocity) value. The external MIDI sound module
+ *            should apply an exponential transfer function between MIDI pressure and
+ *            audio output amplitude (to compensate for perceived loudness).
+ * 
+ * Note 2:    Raw ADC readings are smoothed using a first-order IIR filter, with
+ *            time-constant Tc determined by the sample interval Ts and a constant K, 
+ *            by the formula:  Tc = Ts x (0.8 / K)  where K = 1 / 2^N  (N = 1,2,3...).
+ *            Example:  Let Ts = 5ms, K = 0.25, then Tc = 5 x 3.2 = 16ms
  */
 PRIVATE  void  CalcMidiPressureLevel()
 {
+    static  int32  pressure;  // smoothed level
     int32   level;
     uint16  rawSpan = g_Config.PressureSensorSpan;  // unit = ADC counts
 
     // Calculate pressure as a 14-bit quantity, range 0 to 16256 (127 x 128)
     level = (16256 * (int32)(m_PressureSensorReading - m_PressureQuiescent)) / rawSpan;
-
     if (level < 0) level = 0;
     if (level > 16256)  level = 16256;
+    // Apply smoothing filter
+    pressure = pressure - (pressure >> 2) + (level >> 2);  // K = 0.25 (N = 2)
 
-    m_Pressure_Hi = ((uint16) level >> 7) & 0x7F;     // High-order 7 bits
-    m_Pressure_Lo = (uint8) level & 0x7F;   // Low-order 7 bits
+    m_Pressure_Hi = ((uint16) pressure >> 7) & 0x7F;     // High-order 7 bits
+    m_Pressure_Lo = (uint8) pressure & 0x7F;   // Low-order 7 bits
 }
 
 
@@ -422,10 +430,9 @@ PRIVATE  void  NoteOnOffStateTask()
     static  uint16  LastPressure;
     static  uint8   noteNumPlaying;
     
-    uint16  fingerPattern = m_TouchPadStates;
-    uint8   noteNumber = NoteNumberFromKeyPattern(fingerPattern);
-    uint8   top3Fingers = (fingerPattern >> 5) & 7;  // Get LH1..LH3 into bits 2,1,0
-    uint8   octavePads  = (fingerPattern >> 8) & 3;  // Extract OCT+, OCT-
+    uint8   noteNumber = NoteNumberFromKeyPattern(m_TouchPadStates);
+    uint8   top3Fingers = (m_TouchPadStates >> 5) & 7;  // Get LH1..LH3 into bits 2,1,0
+    uint8   octavePads  = (m_TouchPadStates >> 8) & 3;  // Extract OCT+, OCT-
     bool    isValidNote = (octavePads != 0) && (top3Fingers != 0);
     uint8   channel = g_Config.MidiBasicChannel;
     bool    sendNoteOn = 0;
@@ -494,7 +501,7 @@ PRIVATE  void  NoteOnOffStateTask()
                 MIDI_SendNoteOn(channel, noteNumber, velocity);  // new note on
                 MIDI_SendNoteOff(channel, noteNumPlaying);       // old note off
             }
-            else  // Synth is NOT MIDI compliant (and/or POLY mode enabled)
+            else  // Synth is NOT MIDI standard compliant (and/or POLY mode enabled)
             {
                 MIDI_SendNoteOff(channel, noteNumPlaying);       // old note off
                 MIDI_SendNoteOn(channel, noteNumber, velocity);  // new note on
@@ -513,7 +520,7 @@ PRIVATE  void  NoteOnOffStateTask()
                 {
                     MIDI_SendControlChange(channel, exprnCC, m_Pressure_Hi);
                     if (g_Config.Send14bitExprnData) 
-                        MIDI_SendControlChange(channel, (exprnCC + 32), m_Pressure_Lo);
+                        MIDI_SendControlChange(channel, (0x20 + exprnCC), m_Pressure_Lo);
                 }
                 LastPressure = pressure_14b;
             }
@@ -579,24 +586,16 @@ PRIVATE  void  SendPitchBendUpdate()
 PRIVATE  void  SendModulationUpdate()
 {
     static  uint16  lastValueSent;
-    uint16  currentValue;
     uint8   channel = g_Config.MidiBasicChannel;
-    uint8   ctrlNum = g_Config.MidiModulationCCnumber;
     uint8   dataMSB, dataLSB;
-
-    if (ctrlNum == 0 || ctrlNum >= 0x20)   // Invalid CC# for Modulation
-    {
-        return;  // Can't send mod'n msg -- bail
-    }
-
-    currentValue = GetModulationPadForce();  
+    uint16  currentValue = GetModulationPadForce();  
 
     if (currentValue != lastValueSent)
     {
         dataMSB = (currentValue >> 7) & 0x7F;   // send 7 MS bits of 14 bit data
-        MIDI_SendControlChange(channel, ctrlNum, dataMSB);
+        MIDI_SendControlChange(channel, 0x01, dataMSB);
         dataLSB = currentValue & 0x7F;   // send 7 LS bits of 14 bit data
-        MIDI_SendControlChange(channel, (ctrlNum + 0x20), dataLSB);
+        MIDI_SendControlChange(channel, 0x21, dataLSB);
         lastValueSent = currentValue;
     }
 }
@@ -782,19 +781,18 @@ PRIVATE  void  SendRemiIdentMessage()
 /*
  * Function monitors the MODE switch, looking for a change in state which,
  * if detected, will result in the new state being recorded and actioned.
- * Task called periodically from the main background loop, if a MODE switch is fitted.
+ * Task called periodically from the main background loop.
  * 
- * The MODE switch selects a configuration profile to suit either the REMI synth
- * or a "generic" MIDI synth.  Config parameters will remain unchanged until the
- * mode switch is toggled (after handset power-on/reset) or if a parameter is modified
- * using the "config" command.
+ * The MODE switch selects one of two configuration profiles to suit a corresponding
+ * synthesizer control mode.
  */
 PRIVATE  void   ModeSwitchCheck()
 {
     if (m_ModeSwitchState != SWITCH2_INPUT())  // Switch has been toggled
-    {
+    {   /*
         if (SWITCH2_INPUT() == 0)  SetConfigProfile(GEN_SYNTH_MODE);
-        else  SetConfigProfile(REMI_SYNTH_MODE);
+        else  SetConfigProfile(REMI_SYNTH_MODE); 
+        */
     }
     
     m_ModeSwitchState = SWITCH2_INPUT();
@@ -961,7 +959,6 @@ void  DefaultConfigData(void)
     g_Config.MidiSysExclMsgEnabled = 0;
     g_Config.MidiProgChangeEnabled = 0;
     g_Config.MidiExpressionCCnumber = 2; 
-    g_Config.MidiModulationCCnumber = 1;
     g_Config.MidiPressureInterval = 5;
     g_Config.MidiControllerInterval = 30;  
     
@@ -978,50 +975,14 @@ void  DefaultConfigData(void)
         g_Config.PresetMidiProgram[i] = MidiProgramDefault[i];
     }
     
-    g_Config.PressureSensorSpan = 500;
-    g_Config.PitchBendSpan = 750;
-    g_Config.ModulationMaximum = 750;
+    g_Config.PressureSensorSpan = 750;
+    g_Config.PitchBendSpan = 1000;
+    g_Config.ModulationMaximum = 1000;
     g_Config.ModulationDeadband = 250;
 
     StoreConfigData();
 }
 
-/*
- * Function to set configuration profile according to operating mode.
- * 
- * Entry arg. mode = REMI_SYNTH_MODE or GEN_SYNTH_MODE
- * 
- * Todo:  To be deprecated when revised mode-switch scheme implemented.  <<<<<<<<<<<<<
- */
-void  SetConfigProfile(uint8 mode)
-{
-    if (mode == REMI_SYNTH_MODE)
-    {
-        g_Config.MidiSysExclMsgEnabled = 1;
-        g_Config.MidiExpressionCCnumber = 2;
-        g_Config.MidiModulationCCnumber = 1;
-        g_Config.MidiPressureInterval = 5;
-        g_Config.MidiControllerInterval = 30;  
-        g_Config.Send14bitExprnData = 1; 
-        g_Config.LegatoModeEnabled = 1; 
-        g_Config.VelocitySenseEnabled = 0;
-        g_Config.PitchBendEnabled = 0;
-    }
-    else  // if (mode == GEN_SYNTH_MODE)
-    {
-        g_Config.MidiSysExclMsgEnabled = 0;
-        g_Config.MidiExpressionCCnumber = 2;
-        g_Config.MidiModulationCCnumber = 1;
-        g_Config.MidiPressureInterval = 5;
-        g_Config.MidiControllerInterval = 30;  
-        g_Config.Send14bitExprnData = 0; 
-        g_Config.LegatoModeEnabled = 0; 
-        g_Config.VelocitySenseEnabled = 0;
-        g_Config.PitchBendEnabled = 0;
-    }
-
-    StoreConfigData();
-}
 
 /*
  *  Function copies data from a RAM buffer holding current working values of persistent 
