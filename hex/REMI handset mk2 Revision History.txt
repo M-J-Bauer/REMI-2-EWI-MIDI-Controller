@@ -29,7 +29,7 @@ As above, plus...
 Added DSP smoothing filter to pressure sensor ADC readings to remove noise.
 
 Simplified the console (CLI) code.  Superfluous command functions removed. 
-Combined into a single source file: console_cli.
+Combined into a single source file: console.c.
 
 Deleted config.param. "modncc" (modulation CC number).  Now fixed at CC01.
 
@@ -37,20 +37,63 @@ Bug fix: Command "diag -p" now shows correct MIDI pressure data in quiescent sta
 
 __________________________________________________________________________________________
 
-To Do: [future revision]
-`````````````````````````
-1. Provide 2 separate sets of config. param's. The 'Mode' switch position will select 
-   which parameter set is loaded (active) at start-up.  Plus...
-   - The Mode switch may be moved anytime to select the other set of param's.
-   - If a CLI command is used to modify a parameter value, the new value will saved 
-     in the currently active parameter set, but not in the other set.
+v1.3.13  12-JUN-2022
+````````````````````
+1. Modified function SendRemiIdentMessage() so that 'IDENT' (Sys.Ex.) messages are sent
+   only while there is no note playing, i.e. if m_NoteOnOffState == NOTE_OFF_IDLE.
 
-   Reason for the proposed revision is to allow the player to quickly and easily switch
+2. Provided 2 separate sets of config. param's. The 'Mode' switch position will select 
+   which parameter set is loaded (active) at start-up.  Plus...
+    - The Mode switch may be moved anytime to select the other set of param's.
+    - If a CLI command is used to modify a parameter value, the new value will be saved 
+      in the currently active parameter set, but not in the other set.
+
+   Reason for the revision (2) is to allow the player to quickly and easily switch
    MIDI messaging to suit one or other of two synthesizers which have different control 
-   requirements.  For example, synth #1 may be a "REMI Sound Module" and synth #2 may be
+   requirements.  For example, synth 1 may be a "REMI Sound Module" and synth 0 may be
    a VST synth running on a computer. 
 
-2. Support pitch bend sensor using I2C accelerometer chip.
+__________________________________________________________________________________________
+
+v1.4.05  20-JUN-2022
+````````````````````
+1. Added German flute/recorder fingering scheme to emulate acoustic recorders.
+
+   Octave pads emulate acoustic instruments with thumb "half-hole" operation...
+     OCT+ (or both OCT+ and OCT-) == full-hole;  OCT- (only) == half-hole.
+
+   The config. parameter 'fingsc' (fingering scheme) may be set to 0, 1, 2 or 3.
+     0 => Original REMI fingering -- pad at RH5 acts as RH4 "half-hole";
+     1 => Alternate REMI scheme -- pad at LH4 sharpens C and F (no pad at RH5)
+     2 => German flute/recorder fingering -- RH5 acts as RH4 "half-hole";
+     3 => Same as 2, except pad at LH4 acts as RH4 "half-hole" (no pad at RH5)
+
+2. Added Pitch Offset parameter, settable to any value in the range (0..+/-24) via CLI
+   using the command "config pitch = ##" (where ## is -24 to +24 semitones).
+
+   Added PRESET button function to set Pitch Offset parameter as shown in the table:
+   The Pitch Offset parameter value is preserved across power-down/re-start.
+
+     | -12 (bass C3 | -7 (bass F3) | 0 (tenor C4) | +5 (alto F4) | +12 (soprano C5) |
+     |     OCT-     |  OCT- & LH3  |  OCT- & OCT+ |  OCT+ & LH1  |      OCT+        |
+
+   To set the Pitch Offset, press PRESET button while touching the pad(s) specified.
+   
+3. Added CLI command function "diag -n {0|1}" to de-/activate "Note-On display".
+   When activated, the function displays notes when initiated. This facility may be
+   used to check fingerings. MIDI note number and standard notation (e.g. F4, C#5)
+   are output to the CLI terminal.
+
+4. The alternate low B (B3) has been deleted from the REMI fingering schemes, because
+   it is not playable on an acoustic recorder.
+
+__________________________________________________________________________________________
+
+To Do: [future revisions]
+`````````````````````````
+* Support pitch bend sensor -- MMA8451 I2C accelerometer chip. (v1.5)
+
+* Alternative build option using PIC18F25K22 (28-pin DIP).  (v2.0)
 
 
 __________________________________________________________________________________________
