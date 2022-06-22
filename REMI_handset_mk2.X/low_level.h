@@ -99,9 +99,6 @@ extern volatile bool   v_RTI_flag_5ms_task;
 extern volatile bool   v_RTI_flag_50ms_task;
 extern volatile uint8  v_TaskOverrunCount;   // Task overruns (max. 100 per 100ms)
 
-extern uint32  g_DiagModeTimer_ms;
-extern bool    g_DiagnosticModeActive;
-
 // Functions defined in low-level.c
 //
 void  TMR1_Initialize(void);

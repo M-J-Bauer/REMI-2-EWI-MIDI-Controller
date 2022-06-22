@@ -19,8 +19,8 @@
 //
 #define USE_CONSOLE_CLI      1
 #define CLI_USING_UART1      1
-#define CLI_MAX_ARGS         8        // Maximum # of Command Line arguments (incl. cmd)
-#define CMND_LINE_MAX_LEN   40        // Maximum length of command string
+#define CLI_MAX_ARGS         6        // Maximum # of Command Line arguments (incl. cmd)
+#define CMND_LINE_MAX_LEN   30        // Maximum length of command string
 #define CMD_HIST_BUF_SIZE    4        // Maximum number of commands in recall buffer
 #define MAX_COMMANDS       250        // Maximum number of CLI commands
 
@@ -59,6 +59,17 @@
 
 /******************************************************************************************/
 
+// Application-specific data -- external
+extern uint8 g_FW_version[];            // firmware version # (major, minor, build)
+extern bool  g_NoteOnDisplayActive;     // Set true to enable Note-On display (in CLI)
+
+// The application must provide these "callback" functions, even if they do nothing:
+extern uint32  milliseconds();          // Time elapsed since last MCU reset (ms)
+extern void  DefaultConfigData(void);   // Restore factory defaults to EEPROM
+extern void  BootReset(void);           // Software-invoked MCU reset (re-boot))
+extern void  BackgroundTaskExec(void);  // Background task executive in main module
+
+/******************************************************************************************/
 
 #ifndef ASCII_NUL  // Common ASCII control codes
 //
@@ -92,14 +103,10 @@ struct  CmndTableEntry_t
 #define  SYS_CMD     'S'
 #define  DEBUG_CMD   'D'
 
-uint32  milliseconds();   // Time elapsed since last MCU reset (unit = 1ms)
-void    BackgroundTaskExec(void);  // Background task executive located in main module
-
 // Prototypes of functions defined in console CLI module...
 //
 void    ConsoleCLI_Service(void);
 void    CommandLineInterpreter(void);
-void    PrepareForNewCommand(void);
 void    EnterCommandInHistory(void);
 void    RecallCommand(void);
 void    EraseLine(void);
@@ -120,6 +127,7 @@ void    Cmnd_eeprom(int argCount, char * argValue[]);
 
 // ----------  Application-Specific CLI commands  -----------
 //
+void    WatchCommandExec(void);
 void    Cmnd_config(int argCount, char * argValue[]);
 void    Cmnd_preset(int argCount, char * argValue[]);
 void    Cmnd_diag(int argCount, char * argValue[]);

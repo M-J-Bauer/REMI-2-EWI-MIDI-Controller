@@ -12,34 +12,21 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include "console.h"
 #include "low_level.h"
 #include "touch_sense.h"
 #include "main_remi_handset_mk2.h"
-
-//---------------------  Application-specific externals  ------------------------------------------
-//
-extern uint8 g_FW_version[];        // firmware version # (major, minor, build)
-
-// The application must provide these "callback" functions, even if they do nothing:
-extern void  DefaultConfigData(void);   // Restore factory defaults to EEPROM
-extern void  WatchCommandExec(void);
-extern void  BootReset(void);
 
 //-------------------------------  Private data  --------------------------------------------------
 //                     
 static  char   CLIprompt[] = "\r> ";  // Command line prompt
 static  char   CmndLine[CMND_LINE_MAX_LEN+2];  // Command line buffer
 static  char  *CmndLinePtr;   // Pointer into Cmnd Line buffer
-static  int    iCmndLineLen;  // Cmnd line length (char count)
-static  int    m_argCount;    // Number of Cmnd Line args (incl. Cmnd name)
-static  char  *m_argValue[CLI_MAX_ARGS];   // Array of pointers to Command Line args
-static  char   NullString[] = { '\0' };  // Empty string
-
+static  int    CmndLineLen;   // Cmnd line length (char count)
 static  char   CmndHistoryBuffer[CMD_HIST_BUF_SIZE][CMND_LINE_MAX_LEN+2];
 static  int16  CmndHistoryMarker;  // Index to next free place in Command History Buf
 static  int16  CmndRecallMarker;   // Index of previous command to be recalled
-static  char   HistoryInitialised = FALSE;
 
 /*----------------------------------------------------------------------------------------
 *                      C O M M A N D   T A B L E
@@ -88,56 +75,75 @@ const  struct  CmndTableEntry_t  Command[] =
 */
 void  ConsoleCLI_Service(void)
 {
+    static bool prep_done = FALSE;
     char  c;
+    
+    if (!prep_done)  // one-time initialization at start-up
+    {
+        CmndLineLen = 0;  // prepare for new command
+        CmndLine[0] = 0;
+        CmndLinePtr = CmndLine;
+        putstr(CLIprompt);
+        prep_done = TRUE;
+    }
 
     if (RxDataAvail())     // char(s) available in serial input buffer
     {
         c = getch();             // Fetch the char... no echo (yet)
         switch (c)
         {
-        case ASCII_CAN:                 // Ctrl+X... cancel line...
+        case ASCII_CAN:  // Ctrl+X... cancel line...
             EraseLine();
-            PrepareForNewCommand();
+            CmndLineLen = 0;              // prep new command line
+            CmndLine[0] = 0;
+            CmndLinePtr = CmndLine;  
+            putstr(CLIprompt);
             break;
 
-        case ASCII_BS:                  // BACKSPACE...
-            if (iCmndLineLen > 0)
+        case ASCII_BS:   // BACKSPACE...
+            if (CmndLineLen > 0)
             {
                 CmndLinePtr-- ;           // Remove last-entered char from buffer
-                iCmndLineLen-- ;
+                CmndLineLen-- ;
                 putch(ASCII_BS);          // Backspace the VDU cursor
                 putch(' ');               // Erase offending char at VDU cursor
                 putch(ASCII_BS);          // Re-position the VDU cursor
             }
             break;
 
-        case ASCII_CR:                  // ENTER...
+        case ASCII_CR:   // ENTER...
             putch('\r');                  // Echo NewLine
             putch('\n');
-            if (iCmndLineLen > 0)         // Got a command string...
+            if (CmndLineLen > 0)            // Got a command string...
             {
-                *CmndLinePtr = 0;         // Terminate the command string
+                *CmndLinePtr = 0;           // Terminate the command string
                 EnterCommandInHistory();    // Enter it into the history buffer
                 CommandLineInterpreter();   // Interpret and execute the cmnd.
             }
-            PrepareForNewCommand();         // CR
+            CmndLineLen = 0;                // prep new command line
+            CmndLine[0] = 0;
+            CmndLinePtr = CmndLine;  
+            putstr(CLIprompt);
             break;
 
-        case ASCII_DC2:                 // Ctrl+R... recall command
+        case ASCII_DC2:   // Ctrl+R... recall command
             EraseLine();                    // Trash the current command line
-            PrepareForNewCommand();         // Output the prompt
+            CmndLineLen = 0;                // prep new command line
+            CmndLine[0] = 0;
+            CmndLinePtr = CmndLine;  
+            putstr(CLIprompt);
             RecallCommand();                // Retrieve previous command from history
             break;
 
-        case ASCII_TAB:                 // TAB...  convert to single space
+        case ASCII_TAB:   // TAB...  convert to single space
             c = ' ';
         //  no break... fall thru to default case
         default:
-            if (isprint(c) && iCmndLineLen < CMND_LINE_MAX_LEN)
+            if (isprint(c) && CmndLineLen < CMND_LINE_MAX_LEN)
             {
                 putch(c);                 // Echo char
                 *CmndLinePtr++ = c;       // Append char to Cmnd Line buffer
-                iCmndLineLen++ ;
+                CmndLineLen++ ;
             }
             break;
         } // end_switch
@@ -153,7 +159,7 @@ void  ConsoleCLI_Service(void)
 *   The CommandLineInterpreter() function is called by ConsoleCLI_Service()
 *   when a valid command string is entered (CR received). It finds & counts "arguments"
 *   in the command line and makes them NUL-terminated strings in-situ.
-*   It then searches the Command Table for command name, m_argValue[0],
+*   It then searches the Command Table for command name, argValue[0],
 *   and if the name is found, executes the respective command function.
 *
 *   If there is a cmd line argument following the cmd name and it is "-help" (Help option),
@@ -170,78 +176,63 @@ void  ConsoleCLI_Service(void)
 */
 void  CommandLineInterpreter(void)
 {
-    char    c;
-    uint8   idxArg, idxCmd;
-    char    cmdNameFound = 0;
-
-    CmndLinePtr = CmndLine;             // point to start of Cmnd Line buffer
-    m_argCount = 0;
+    static char  *argValue[CLI_MAX_ARGS];
+    int    argCount = 0;
+    char   c;
+    uint8  i;
+    bool   cmdNameFound = 0;
+    
+    CmndLinePtr = CmndLine;  // point to start of Cmnd Line buffer
+    for (i = 1;  i < CLI_MAX_ARGS;  i++)   // Clear all command arg's
+        { argValue[i] = NULL; }
 
     // This loop finds and terminates (with a NUL) any user-supplied arguments...
-    for (idxArg = 0;  idxArg < CLI_MAX_ARGS;  idxArg++)
+    for (i = 0;  i < CLI_MAX_ARGS;  i++)
     {
-        if (!isprint(*CmndLinePtr))               // stop at end of line
+        if (!isprint(*CmndLinePtr))    // stop at end of line
             break;
-        while (*CmndLinePtr == ' ')                 // skip leading spaces
+        while (*CmndLinePtr == ' ')    // skip leading spaces
             CmndLinePtr++ ;
-        if (!isprint(*CmndLinePtr))               // end of line found
+        if (!isprint(*CmndLinePtr))    // end of line found
             break;
-        m_argValue[idxArg] = CmndLinePtr;            // Make ptr to arg
-        m_argCount++ ;
+        argValue[i] = CmndLinePtr;     // Make ptr to arg
+        argCount++ ;
 
-        while ((c = *CmndLinePtr) != ' ')         // find first space after arg
+        while ((c = *CmndLinePtr) != ' ')   // find first space after arg
         {
-            if (!isprint(c))                        // end of line found
+            if (!isprint(c))           // end of line found
                 break;
             CmndLinePtr++ ;
         }
-        if (!isprint(*CmndLinePtr))               // stop at end of line
+        if (!isprint(*CmndLinePtr))    // stop at end of line
             break;
-        *CmndLinePtr++ = 0;                       // NUL-terminate the arg
+        *CmndLinePtr++ = 0;            // NUL-terminate the arg
     }
 
     // This loop searches the command table for the supplied command name...
-    for (idxCmd = 0;  idxCmd < MAX_COMMANDS;  idxCmd++)
+    for (i = 0;  i < MAX_COMMANDS;  i++)
     {
         
-        if (*Command[idxCmd].Name == '$')     // reached end of table
+        if (*Command[i].Name == '$')   // reached end of table
             break;
-        if (strmatch(m_argValue[0], Command[idxCmd].Name))
+        if (strmatch(argValue[0], Command[i].Name))
         {
             cmdNameFound = 1;
             break;
         }
     }
-
-    if (m_argCount > 1)       // If there is one or more user-supplied arg(s)...
+    
+    if (argCount > 1)       // If there is one or more user-supplied arg(s)...
     {
-        if (strmatch(m_argValue[1], "-help"))       // convert "-help" to '?' ...
-            *m_argValue[1] = '?';                    // ... to simplify cmd fn
+        if (strmatch(argValue[1], "-help"))    // convert "-help" to '?'
+            *argValue[1] = '?';                // ... to simplify cmd fn
     }
 
     if (cmdNameFound)
     {
-        (*Command[idxCmd].Function)(m_argCount, m_argValue);     // Do it
+        (*Command[i].Function)(argCount, argValue);     // Do it
     }
     else  putstr("? Undefined command.\n");
-}
-
-
-/*
-*   Flush Command Line buffer, clear CLI arg's and output CLI prompt.
-*   This function must be called before the first call to ConsoleCLI_Service()
-*   to initialize the CLI environment.
-*/
-void  PrepareForNewCommand(void)
-{
-    uint8  idx;
-
-    CmndLine[0] = 0;
-    CmndLinePtr = CmndLine;  // point to start of Cmnd Line buffer
-    iCmndLineLen = 0;
-    for (idx = 0;  idx < CLI_MAX_ARGS;  idx++)   // Clear CLI args
-        m_argValue[idx] = NullString;
-    putstr(CLIprompt);
 }
 
 
@@ -251,9 +242,10 @@ void  PrepareForNewCommand(void)
 */
 void  EnterCommandInHistory(void)
 {
+    static  bool  initialised = FALSE;
     short  line;
 
-    if (!HistoryInitialised)  // One-time start-up initialization
+    if (!initialised)  // One-time initialization at start-up 
     {
         for (line = 0 ; line < CMD_HIST_BUF_SIZE ; line++)
         {
@@ -261,7 +253,7 @@ void  EnterCommandInHistory(void)
         }
         CmndHistoryMarker = 0;
         CmndRecallMarker = 0;
-        HistoryInitialised = TRUE;
+        initialised = TRUE;
     }
 
     if (strlen(CmndLine) != 0)   // Not an empty cmnd string
@@ -287,8 +279,8 @@ void  RecallCommand(void)
     strncpy(CmndLine, CmndHistoryBuffer[CmndRecallMarker], CMND_LINE_MAX_LEN);
     if (CmndRecallMarker == 0) CmndRecallMarker = CMD_HIST_BUF_SIZE;
     --CmndRecallMarker;
-    iCmndLineLen = strlen(CmndLine);
-    CmndLinePtr = CmndLine + iCmndLineLen;
+    CmndLineLen = strlen(CmndLine);
+    CmndLinePtr = CmndLine + CmndLineLen;
     *CmndLinePtr = 0;
     putstr(CmndLine);
 }
@@ -649,7 +641,7 @@ void  Cmnd_watch(int argCount, char * argValue[])
 
 /**
  *   Application-specific data output function called by "watch" command...
- *   Variables to be "watched" are output on a single line (no newline).
+ *   Variables to be "watched" must be printed on a single line (no newline).
  */
 void  WatchCommandExec(void)
 {
@@ -661,124 +653,6 @@ void  WatchCommandExec(void)
 
 
 /*```````````````````````````````````````````````````````````````````````````````````````
- * CLI command function:  Cmnd_config
- *
- * The "config" command allows configuration parameters to be viewed or modified.
- * If a parameter value is changed, it will be committed to non-volatile storage.
- */
-void  Cmnd_config( int argCount, char *argValue[] )
-{
-    char    nickname[10];   // maximum 7 chars + NUL
-    uint16  value;
-    bool    isBadData = FALSE;
-    
-    if (argValue[1][0] == '?')  // help wanted   
-    {
-        putstr("Usage #1:  config    | List config'n param's \n\n");
-        putstr("Usage #2:  config <param> [=] <value>    | Set param. value \n");
-        putstr("   where <param> is a nickname listed by usage #1. \n\n");
-        putstr("Example:   config  chan = 10    [Set Midi Tx channel = 10] \n\n");
-    }
-    else if (argCount == 1)  // View param's 
-    {
-        putstr("chan    ");  putDecimal(g_Config.MidiBasicChannel, 4);
-        putstr("  Midi Basic Channel (1..16) \n");
-        putstr("sysxen  ");  putDecimal(g_Config.MidiSysExclMsgEnabled, 4);
-        putstr("  Midi Sys.Excl.Msg Enabled (0,1)\n");
-        putstr("prchen  ");  putDecimal(g_Config.MidiProgChangeEnabled, 4);
-        putstr("  Midi Prog. Change Enabled (0,1)\n");
-        putstr("expncc  ");  putDecimal(g_Config.MidiExpressionCCnumber, 4);
-        putstr("  Midi Expression CC number (2,7,11)\n");
-        putstr("expnint ");  putDecimal(g_Config.MidiPressureInterval, 4);
-        putstr("  Midi Expression Interval (5..50 ms)\n");
-        putstr("expn14b ");  putDecimal(g_Config.Send14bitExprnData, 4);
-        putstr("  Send 14-bit Expression data (0,1)\n");
-        putstr("modint  ");  putDecimal(g_Config.MidiControllerInterval, 4); 
-        putstr("  Midi Modulation Interval (10..100 ms)\n");
-        
-        putstr("legato  ");  putDecimal(g_Config.LegatoModeEnabled, 4);
-        putstr("  Legato Mode Enabled (0,1)\n");
-        putstr("velsen  ");  putDecimal(g_Config.VelocitySenseEnabled, 4);
-        putstr("  Velocity Sense Enabled (0,1)\n");
-        putstr("pbenden ");  putDecimal(g_Config.PitchBendEnabled, 4);
-        putstr("  Pitch Bend Enabled (0,1)\n");
-        putstr("padlay  ");  putDecimal(g_Config.TouchPadLayout, 4);
-        putstr("  Touch Pad Layout (0,1)\n");
-        putstr("fingsc  ");  putDecimal(g_Config.FingeringScheme, 4);
-        putstr("  Fingering Scheme (0,1,2,..)\n");
-        putstr("thres   ");  putDecimal(g_Config.TouchSenseThreshold, 4);
-        putstr("  Touch Sense Threshold (max.250)\n");
-        
-        putstr("prspan  ");  putDecimal(g_Config.PressureSensorSpan, 4);
-        putstr("  Pressure Sensor Span (max.750)\n");
-        putstr("pbspan  ");  putDecimal(g_Config.PitchBendSpan, 4);
-        putstr("  Pitch-Bend Span (max.1000)\n");
-        putstr("modmax  ");  putDecimal(g_Config.ModulationMaximum, 4);
-        putstr("  Modulation Maximum (max.1000)\n");
-        putstr("modband ");  putDecimal(g_Config.ModulationDeadband, 4);
-        putstr("  Modulation Dead-band (max.500)\n");
-    }
-    else if (argCount >= 3)   // Set param. value and verify EEPROM write
-    {
-        strncpy(nickname, (const char *) argValue[1], 8);
-        nickname[7] = 0;  // limit length to 7 chars
-        
-        if (argValue[2][0] == '=' && argCount == 4)  value = atoi(argValue[3]);
-        else  value = atoi(argValue[2]);
-        
-        if (strmatch(nickname, "chan") && value >= 1 && value <= 16)
-            g_Config.MidiBasicChannel = value;
-        else if (strmatch(nickname, "sysxen") && value <= 1)
-            g_Config.MidiSysExclMsgEnabled = value;
-        else if (strmatch(nickname, "prchen") && value <= 1)
-            g_Config.MidiProgChangeEnabled = value;
-        else if (strmatch(nickname, "expncc") && value < 32)
-            g_Config.MidiExpressionCCnumber = value;
-        else if (strmatch(nickname, "expnint") && value >= 5 && value <= 50)
-            g_Config.MidiPressureInterval = value;
-        else if (strmatch(nickname, "expn14b") && value <= 1)
-            g_Config.Send14bitExprnData = value;
-        else if (strmatch(nickname, "modint") && value >= 10 && value <= 100)
-            g_Config.MidiControllerInterval = value;
-        
-        else if (strmatch(nickname, "padlay") && value <= 1)
-            g_Config.TouchPadLayout = value;
-        else if (strmatch(nickname, "fingsc") && value <= 1)
-            g_Config.FingeringScheme = value;
-        else if (strmatch(nickname, "legato") && value <= 1)
-            g_Config.LegatoModeEnabled = value;
-        else if (strmatch(nickname, "pbenden") && value <= 1)
-            g_Config.PitchBendEnabled = value;
-        else if (strmatch(nickname, "velsen") && value <= 1)
-            g_Config.VelocitySenseEnabled = value;
-        else if (strmatch(nickname, "thres") && value >= 50 && value <= 250)
-            g_Config.TouchSenseThreshold = value;
-        else if (strmatch(nickname, "prspan") && value >= 100 && value <= 700)
-            g_Config.PressureSensorSpan = value;
-        else if (strmatch(nickname, "pbspan") && value >= 100 && value <= 750)
-            g_Config.PitchBendSpan = value;
-        else if (strmatch(nickname, "modmax") && value >= 100 && value <= 750)
-            g_Config.ModulationMaximum = value;
-        else if (strmatch(nickname, "modband") && value <= 500)
-            g_Config.ModulationDeadband = value;
-        else  
-        {
-            isBadData = TRUE;
-            putstr("! Invalid nickname or value.\n");
-        }
-        
-        if (!isBadData)  
-        {
-            StoreConfigData();
-            putstr("* New value saved: ");  putDecimal((int)value, 4);
-            putNewLine();
-        }
-    }
-    else  putstr("! Invalid command. \n");  // Cmd syntax undefined
-}
-
-
-/*```````````````````````````````````````````````````````````````````````````````````````
  * CLI command function:  Cmnd_preset
  *
  * The "preset" command allows preset MIDI Program numbers to be viewed and modified.
@@ -786,7 +660,7 @@ void  Cmnd_config( int argCount, char *argValue[] )
  */
 void  Cmnd_preset(int argCount, char *argValue[])
 {
-    uint8  preset = atoi(argValue[1]);
+    uint8  preset = (uint8) atoi((const char *) argValue[1]);
     uint8  i,  midi_prgm;
     bool   isBadData = FALSE;
     
@@ -813,8 +687,8 @@ void  Cmnd_preset(int argCount, char *argValue[])
     else if (argCount >= 3)   // Set Preset value
     {
         if (argValue[2][0] == '=' && argCount == 4)  
-			midi_prgm = atoi(argValue[3]);
-        else  midi_prgm = atoi(argValue[2]);
+            midi_prgm = (uint8) atoi((const char *) argValue[3]);
+        else  midi_prgm = (uint8) atoi((const char *) argValue[2]);
 
         if (preset >= 1 && preset <= 8 && midi_prgm < 128)
         {
@@ -840,6 +714,168 @@ void  Cmnd_preset(int argCount, char *argValue[])
 }
 
 
+/*```````````````````````````````````````````````````````````````````````````````````````
+ * CLI command function:  Cmnd_config
+ *
+ * The "config" command allows configuration parameters to be viewed or modified.
+ * If a parameter value is changed, it will be committed to non-volatile storage.
+ */
+void  Cmnd_config( int argCount, char *argValue[] )
+{
+    static  char  nickname[10];   // maximum 7 chars + NUL
+    int     paramVal = 19999;
+    bool    isBadData = FALSE;
+    bool    doShowMoreInfo = FALSE;
+    uint8   mode = GetModeSwitchState();  // MODE switch position (0 | 1)
+    
+    if (argValue[1][0] == '?')  // help wanted
+    {
+        putstr("Usage #1:  config [*]   |  List config. param's [* info]\n\n");
+        //
+        putstr("Usage #2:  config <param> [=] <value>    | Set param. value \n");
+        putstr("   where <param> is a nickname listed by usage #1. \n\n");
+        putstr("Example:   config  chan = 10    [Set Midi Tx channel = 10] \n\n");
+    }
+    else if (argCount == 1)  // View param's 
+    {
+        putstr("------- Mode ");  putDecimal(mode, 1);  
+        putstr(" Parameters --------------------\n");
+        
+        putstr("chan    ");  putDecimal(g_Config.MidiBasicChannel[mode], 4);
+        putstr("  Midi Basic Channel (1..16) \n");
+        putstr("sysxen  ");  putDecimal(g_Config.MidiSysExclMsgEnabled[mode], 4);
+        putstr("  Midi Sys.Excl.Msg Enabled (0,1)\n");
+        putstr("prchen  ");  putDecimal(g_Config.MidiProgChangeEnabled[mode], 4);
+        putstr("  Midi Prog. Change Enabled (0,1)\n");
+        putstr("expncc  ");  putDecimal(g_Config.MidiExpressionCCnumber[mode], 4);
+        putstr("  Midi Expression CC number (0,2,7,11)\n");
+        putstr("expn14b ");  putDecimal(g_Config.Send14bitExprnData[mode], 4);
+        putstr("  Send 14-bit Expression data (0,1)\n");
+        putstr("legato  ");  putDecimal(g_Config.LegatoModeEnabled[mode], 4);
+        putstr("  Legato Mode Enabled (0,1)\n");
+        putstr("velsen  ");  putDecimal(g_Config.VelocitySenseEnabled[mode], 4);
+        putstr("  Velocity Sense Enabled (0,1)\n");
+        putstr("pbenden ");  putDecimal(g_Config.PitchBendEnabled[mode], 4);
+        putstr("  Pitch Bend Enabled (0,1)\n");
+
+        putstr("------- Handset Parameters --------------------\n");
+        
+        putstr("expnint ");  putDecimal(g_Config.MidiPressureInterval, 4);
+        putstr("  Midi Expression Interval (5..50 ms)\n");
+        putstr("modint  ");  putDecimal(g_Config.MidiControllerInterval, 4); 
+        putstr("  Midi Modulation Interval (10..100 ms)\n");
+        putstr("fingsc  ");  putDecimal(g_Config.FingeringScheme, 4);
+        putstr("  Fingering Scheme (0,1,2,3)\n");
+        putstr("pitch   ");  putDecimal(g_Config.PitchOffset, 4);
+        putstr("  Pitch Offset (0..+/-24 semitones)\n");
+        putstr("thres   ");  putDecimal(g_Config.TouchSenseThreshold, 4);
+        putstr("  Touch Sense Threshold (max.250)\n");
+        putstr("prspan  ");  putDecimal(g_Config.PressureSensorSpan, 4);
+        putstr("  Pressure Sensor Span (max.750)\n");
+        putstr("pbspan  ");  putDecimal(g_Config.PitchBendSpan, 4);
+        putstr("  Pitch-Bend Span (max.1000)\n");
+        putstr("modmax  ");  putDecimal(g_Config.ModulationMaximum, 4);
+        putstr("  Modulation Maximum (max.1000)\n");
+        putstr("modband ");  putDecimal(g_Config.ModulationDeadband, 4);
+        putstr("  Modulation Dead-band (max.500)\n");
+        putstr("\n");
+    }
+    else if (argCount == 2)  // Show more detail on 'fingsc' and 'pitch'
+    {
+        doShowMoreInfo = TRUE;
+    }
+    else if (argCount >= 3)   // Set param. value and verify EEPROM write
+    {
+        strncpy(nickname, (const char *) argValue[1], 8);
+        nickname[7] = 0;  // limit length to 7 chars
+        
+        if (argValue[2][0] == '=' && argCount == 4)  
+            paramVal = atoi((const char *) argValue[3]);
+        else  paramVal = atoi((const char *) argValue[2]);
+/*
+        putstr(": nickname = ");  putstr(nickname);  putNewLine();  // debug use only
+        putstr(": paramVal = ");  putDecimal(paramVal, 1);  putNewLine();
+*/
+        if (strmatch(nickname, "chan") && paramVal >= 1 && paramVal <= 16)
+            g_Config.MidiBasicChannel[mode] = paramVal;
+        else if (strmatch(nickname, "sysxen") && paramVal >= 0 && paramVal <= 1)
+            g_Config.MidiSysExclMsgEnabled[mode] = paramVal;
+        else if (strmatch(nickname, "prchen") && paramVal >= 0 && paramVal <= 1)
+            g_Config.MidiProgChangeEnabled[mode] = paramVal;
+        else if (strmatch(nickname, "expncc") && paramVal >= 0 && paramVal < 32)
+            g_Config.MidiExpressionCCnumber[mode] = paramVal;
+        else if (strmatch(nickname, "expn14b") && paramVal >= 0 && paramVal <= 1)
+            g_Config.Send14bitExprnData[mode] = paramVal;
+        else if (strmatch(nickname, "legato") && paramVal >= 0 && paramVal <= 1)
+            g_Config.LegatoModeEnabled[mode] = paramVal;
+        else if (strmatch(nickname, "pbenden") && paramVal >= 0 && paramVal <= 1)
+            g_Config.PitchBendEnabled[mode] = paramVal;
+        else if (strmatch(nickname, "velsen") && paramVal >= 0 && paramVal <= 1)
+            g_Config.VelocitySenseEnabled[mode] = paramVal;
+        
+        else if (strmatch(nickname, "modint") && paramVal >= 10 && paramVal <= 100)
+            g_Config.MidiControllerInterval = paramVal;
+        else if (strmatch(nickname, "expnint") && paramVal >= 5 && paramVal <= 50)
+            g_Config.MidiPressureInterval = paramVal;
+        else if (strmatch(nickname, "fingsc") && paramVal >= 0 && paramVal <= 7)
+        {
+            g_Config.FingeringScheme = paramVal;
+            doShowMoreInfo = TRUE;
+        }
+        else if (strmatch(nickname, "pitch") && paramVal >= -24 && paramVal <= 24)
+        {
+            g_Config.PitchOffset = paramVal;
+            doShowMoreInfo = TRUE;
+        }
+        else if (strmatch(nickname, "thres") && paramVal >= 50 && paramVal <= 250)
+            g_Config.TouchSenseThreshold = paramVal;
+        else if (strmatch(nickname, "prspan") && paramVal >= 100 && paramVal <= 1000)
+            g_Config.PressureSensorSpan = paramVal;
+        else if (strmatch(nickname, "pbspan") && paramVal >= 100 && paramVal <= 1000)
+            g_Config.PitchBendSpan = paramVal;
+        else if (strmatch(nickname, "modmax") && paramVal >= 100 && paramVal <= 1000)
+            g_Config.ModulationMaximum = paramVal;
+        else if (strmatch(nickname, "modband") && paramVal >= 0 && paramVal <= 800)
+            g_Config.ModulationDeadband = paramVal;
+        else  
+        {
+            isBadData = TRUE;
+            putstr("! Invalid nickname or value.\n");
+        }
+        
+        if (!isBadData)  // nickname and new param value OK
+        {
+            StoreConfigData();
+            putstr("* New value saved: ");  putDecimal(paramVal, 1);
+            putNewLine();
+        }
+    
+
+    }
+    
+    if (doShowMoreInfo)
+    {
+        putstr("Fingering scheme: ");
+        if (g_Config.FingeringScheme == 0)  
+            putstr("REMI standard -- pad RH5 flattens\n");
+        else if (g_Config.FingeringScheme == 1)  
+            putstr("REMI alternate -- pad LH4 sharpens\n");
+        else if (g_Config.FingeringScheme >= 2)  
+            putstr("German flute/recorder emulation\n");
+        else  putNewLine();
+
+        putstr("Pitch Offset: ");  putDecimal(g_Config.PitchOffset, 4);
+        putstr(" semitones    ");
+        if (g_Config.PitchOffset == -12)  putstr("Great Bass (C3)\n");
+        else if (g_Config.PitchOffset == -7)  putstr("Bass (F3)\n");
+        else if (g_Config.PitchOffset == 0)  putstr("Tenor (C4)\n");
+        else if (g_Config.PitchOffset == 5)  putstr("Alto/Treble (F4)\n");
+        else if (g_Config.PitchOffset == 12)  putstr("Soprano/Descant (C5)\n");
+        else  putNewLine();
+    }
+}
+
+
 /*****
 *   CLI command function:  Cmnd_diag
 *
@@ -855,19 +891,101 @@ void  Cmnd_diag(int argCount, char * argValue[])
         putstr("Usage:  diag  <option>  [arg1] ... \n");
         putstr("<option> \n");
 //      putstr(" -d :  Test Delay function or macro \n"); 
-        putstr(" -e :  Show startup self-test Errors \n"); 
-        putstr(" -f :  Write Flash data block (destructive) \n"); 
-        putstr(" -m :  MIDI OUT TX test (send 0x0F continuously) \n"); 
-        putstr(" -q :  MIDI OUT TX Queue test (send IDENT @ 5ms) \n"); 
 //      putstr(" -o :  Task Overrun check \n"); 
+        putstr(" -e :  Show startup self-test Errors \n"); 
+        putstr(" -m :  Show Mode Switch input state \n"); 
         putstr(" -p :  Show MIDI Pressure data value (14b)\n"); 
         putstr(" -s :  Show note on/off State \n"); 
+        putstr(" -n :  De/activate Note-On display (arg = 0|1)\n"); 
+        putstr(" -t :  MIDI TX driver test (send 0x0F non-stop)\n"); 
+        putstr(" -q :  MIDI TX Queue test (IDENT msg @ 5ms)\n"); 
         return;
     }
 
     switch (option)
     {
-#if 0     
+    case 'e':  // Self-test Errors  
+    {
+        if (g_SelfTestErrors == 0)  
+            putstr("* No self-test errors.\n");
+        if (g_SelfTestErrors & (1 << TEST_CONFIG_OVERSIZE))  // firmware defect!
+            putstr("! Error: Config data exceeds block size\n");
+        if (g_SelfTestErrors & (1 << TEST_CONFIG_INTEGRITY))  
+            putstr("! Error: Config data corrupted (defaulted)\n");
+        if (g_SelfTestErrors & (1 << TEST_PRESSURE_SENSOR))   
+            putstr("! Error: Pressure Sensor fault\n");
+        if (g_SelfTestErrors & (1 << TEST_MODULATION_SENSOR)) 
+            putstr("! Error: Modulation Sensor fault\n");
+        break;
+    }
+    case 'm':  // Show MODE SWITCH state (High/Low)
+    {
+        putstr("  Mode switch input state: ");
+        if (SWITCH2_INPUT() == 0) putstr("Low (0) \n");
+        else  putstr("High (1) \n");
+        break;
+    }
+    case 'p':  // Show MIDI pressure level (expression CC message data value)
+    {
+        putDecimal(GetMidiPressureLevel(), 5);  putstr("\n");
+        break;
+    }
+    case 's':  // Show note on/off state
+    {
+        uint16  state = GetNoteOnOffState();
+        
+        if (state == NOTE_OFF_IDLE)  putstr("OFF/IDLE (0)\n");
+        else if (state == NOTE_ON_PENDING)  putstr("PENDING (1)\n");
+        else if (state == NOTE_ON_PLAYING)  putstr("PLAYING (2)\n");
+        else  putstr("UNDEFINED (error)\n");
+        break;
+    }
+    case 'n':  // De/activate Note-On display
+    {
+        if (argCount == 3 && *argValue[2] == '1') g_NoteOnDisplayActive = TRUE;
+        else  g_NoteOnDisplayActive = FALSE;
+        if (g_NoteOnDisplayActive)  
+            putstr("* Note-On display activated. Enter 'diag -n' to cancel.\n");
+        break;
+    }
+    case 't':  // MIDI transmitter test (send 0x0F byte continuously)
+    {
+        char  key = 0;
+        putstr("Sending 0x0F continuously to MIDI TX UART...\n");
+        putstr("Hit [Esc] to exit. \n");
+        while (key != ASCII_ESC)
+        {
+            EUSART2_WriteByte(0x0F);  // TX direct to UART2
+            
+            if (kbhit()) key = getch();  // console key hit
+        }
+        break;
+    }
+    case 'q':  // MIDI transmit queue test (send Sys.Excl.IDENT msg continuously)
+    {
+        char  key = 0;
+        putstr("Sending Sys.Ex. 'IDENT' msg continuously to MIDI OUT \n");
+        putstr("via MIDI transmit queue.  Message interval is 5ms. \n");
+        putstr("Hit [Esc] to exit... \n");
+        captureTime = milliseconds();
+        
+        while (key != ASCII_ESC)
+        {
+            if ((milliseconds() - captureTime) < 5)  // every 5ms ...
+            {
+                captureTime = milliseconds();
+                MIDI_PutByte(SYS_EXCLUSIVE_MSG);   // status byte (0xF0)
+                MIDI_PutByte(SYS_EXCL_REMI_ID);    // manuf/product ID (0x73)
+                MIDI_PutByte(REMI_IDENT_MSG);      // Msg type (0x30)
+                MIDI_PutByte(SYSTEM_MSG_EOX);      // end-of-msg code (0xF7)
+            }
+            MIDI_TxQueueHandler();
+            
+            if (kbhit()) key = getch();  // console key hit
+        }
+        break;
+    }
+#if 0  // deprecated diag command option(s)...
     case 'd':  // Delay test (for development)
     {
         putstr("Test execution time of DELAY_1us() macro. \n");
@@ -907,114 +1025,11 @@ void  Cmnd_diag(int argCount, char * argValue[])
         break;
     }
 #endif
-    case 'e':  // Self-test Errors  
-    {
-        if (g_SelfTestErrors == 0)  
-            putstr("* No self-test errors.\n");
-        if (g_SelfTestErrors & (1 << TEST_CONFIG_INTEGRITY))  
-            putstr("! Error: Config Data (defaulted)\n");
-        if (g_SelfTestErrors & (1 << TEST_PRESSURE_SENSOR))   
-            putstr("! Error: Pressure Sensor\n");
-        if (g_SelfTestErrors & (1 << TEST_MODULATION_SENSOR)) 
-            putstr("! Error: Modulation Sensor\n");
-        break;
-    }
-    case 'p':  // Show MIDI pressure level (expression CC message data value)
-    {
-        putDecimal(GetMidiPressureLevel(), 5);  putstr("\n");
-        break;
-    }
-    case 's':  // Show note on/off state
-    {
-        uint16  state = GetNoteOnOffState();
-        
-        if (state == NOTE_OFF_IDLE)  putstr("OFF/IDLE (0)\n");
-        else if (state == NOTE_ON_PENDING)  putstr("PENDING (1)\n");
-        else if (state == NOTE_ON_PLAYING)  putstr("PLAYING (2)\n");
-        else  putstr("UNDEFINED (error)\n");
-        break;
-    }
-    case 'f':  // Write flash data block at 0x7FC0  
-    {
-        static char  *argv[] = { "dump ", "7F00 " };
-        
-        FlashWriteBlock((uint8 *) &g_Config, 0x7FC0);
-        Cmnd_dump(2, &argv[0]);
-        break;
-    }
-    case 'm':  // MIDI transmitter test (send 0x0F byte continuously)
-    {
-        char  key = 0;
-        putstr("Sending 0x0F continuously to MIDI TX UART...\n");
-        putstr("Hit [Esc] to exit. \n");
-        while (key != ASCII_ESC)
-        {
-            EUSART2_WriteByte(0x0F);  // TX direct to UART2
-            
-            if (kbhit()) key = getch();  // console key hit
-        }
-        break;
-    }
-    case 'q':  // MIDI transmit queue test (send Sys.Excl.IDENT msg continuously)
-    {
-        char  key = 0;
-        putstr("Sending Sys.Ex. 'IDENT' msg continuously to MIDI OUT \n");
-        putstr("via MIDI transmit queue.  Message interval is 5ms. \n");
-        putstr("Hit [Esc] to exit... \n");
-        captureTime = milliseconds();
-        
-        while (key != ASCII_ESC)
-        {
-            if ((milliseconds() - captureTime) < 5)  // every 5ms ...
-            {
-                captureTime = milliseconds();
-                MIDI_PutByte(SYS_EXCLUSIVE_MSG);   // status byte (0xF0)
-                MIDI_PutByte(SYS_EXCL_REMI_ID);    // manuf/product ID (0x73)
-                MIDI_PutByte(REMI_IDENT_MSG);      // Msg type (0x30)
-                MIDI_PutByte(SYSTEM_MSG_EOX);      // end-of-msg code (0xF7)
-            }
-            MIDI_TxQueueHandler();
-            
-            if (kbhit()) key = getch();  // console key hit
-        }
-        break;
-    }
     } // end switch
 }
 
 
-#if 0  // Deprecated commands
-/*```````````````````````````````````````````````````````````````````````````````````````
- * CLI command function:  Cmnd_mode
- *
- * The "mode" command is provided to set the "operating mode" of the handset,
- * i.e. to set the configuration profile to suit the connected synthesizer,
- * which may be a REMI synth module or any "generic" MIDI synth.
- * 
- * This command is useful where there is no MODE switch fitted on the handset.
- * Where a MODE switch is fitted, the "mode" command overrides the switch state,
- * so it is possible that the selected config profile may contradict the mode
- * indicated by the switch position.
- */
-void  Cmnd_mode(int argCount, char * argValue[])
-{
-    char  option = tolower(argValue[1][1]);
-    
-    if (argValue[1][0] == '?')  // help wanted
-    {
-        putstr("Set operating mode, i.e. configuration profile.\n");
-        putstr("Usage:  mode {-r|-g} \n");
-        putstr("  -r : REMI synth,  -g : generic synth mode\n");
-        return;
-    }
-    
-    if (option == 'g')  SetConfigProfile(GEN_SYNTH_MODE);
-    if (option == 'r')  SetConfigProfile(REMI_SYNTH_MODE);
-    
-    if (g_Config.MidiSysExclMsgEnabled)  putstr("= REMI \n");
-    else  putstr("= Generic \n");
-}
-
+#if 0  // Deprecated command function(s)...
 /*```````````````````````````````````````````````````````````````````````````````````````
  * CLI command function:  Cmnd_tsens
  *

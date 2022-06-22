@@ -1,4 +1,4 @@
-/****************************************************************************************
+/* =======================================================================================
  *
  * File:   main_remi_handset_mk2.h
  *
@@ -19,20 +19,18 @@
 //                       FIRMWARE VERSION NUMBER AND BUILD OPTIONS
 //
 #define BUILD_VER_MAJOR   1
-#define BUILD_VER_MINOR   2
-#define BUILD_VER_DEBUG   5
+#define BUILD_VER_MINOR   4
+#define BUILD_VER_DEBUG   11
 //
 // =======================================================================================
 
-// Possible values for g_Config.FingeringScheme...
-#define KEY_SCHEME_RH5_FLATTENS   0    // Original keying scheme (LH4/RH5 -> D.flat)
-#define KEY_SCHEME_LH4_SHARPENS   1    // Alternate keying scheme (LH4 -> C.sharp)
+// Possible values for g_Config.FingeringScheme.. (bit_0 set => pad at LH4)
+#define KEYING_SCHEME_REMI_STD    0    // Original REMI keying scheme (RH5)
+#define KEYING_SCHEME_REMI_ALT    1    // Alternate EWI keying scheme (LH4)
+#define KEYING_SCHEME_GERMAN      2    // German fingering emulation  (RH5)
+#define KEYING_SCHEME_GERMAN_ALT  3    // German fingering emulation  (LH4)
 
-// Possible values for g_Config.TouchPadLayout...
-#define LAYOUT_WITH_PAD_AT_RH5    0    // Recorder-like layout (Pad at RH5)
-#define LAYOUT_WITH_PAD_AT_LH4    1    // Sylphyo-style layout (Pad at LH4)
-
-#define NOTE_ON_VELOCITY_DELAY   10    // Delay (ms) from note trigger to get velocity
+#define NOTE_ON_VELOCITY_DELAY   15    // Delay (ms) from note trigger to get velocity
 
 // MIDI System Exclusive message types unique to REMI...
 #define REMI_PRESET_MSG   0x07     // 'REMI PRESET' msg type (set Preset #)
@@ -42,7 +40,7 @@
 enum  Self_test_categories
 {
     TEST_CONFIG_INTEGRITY = 0,  // 0
-    TEST_RESERVED,              // 1
+    TEST_CONFIG_OVERSIZE,       // 1
     TEST_PRESSURE_SENSOR,       // 2
     TEST_MODULATION_SENSOR,     // 3
     NUMBER_OF_SELFTEST_ITEMS
@@ -57,10 +55,6 @@ enum  NoteOnOff_Task_States
 
 extern  char   *g_AppTitleCLI;             // Title string output by "ver" command
 extern  uint8   g_FW_version[];            // firmware version # (major, minor, build, 0)
-extern  bool    g_HeartbeatLEDactive;
-extern  bool    g_DiagnosticModeActive;
-extern  int     g_DiagnosticModeTimeout;   // unit = minutes
-extern  uint32  g_DiagModeTimer_ms;
 extern  uint8   g_SelfTestErrors;
 
 extern volatile bool  v_RTI_flag_1ms_task;
@@ -73,27 +67,32 @@ extern volatile uint8 v_TaskOverrunCount;
 //
 typedef struct Config_Params_Structure
 {
-    uint8   MidiBasicChannel;         // MIDI OUT channel, range: 1..16 (default: 1)
-    uint8   MidiSysExclMsgEnabled;    // MIDI SystemExclusive Messages Enabled (0)
-    uint8   MidiProgChangeEnabled;    // MIDI Program Change Messages Enabled (0)
-    uint8   MidiExpressionCCnumber;   // MIDI Ctrl Change # for breath/pressure messages
-    uint8   MidiPressureInterval;     // MIDI pressure TX update interval (5..50 ms)
-    uint8   MidiControllerInterval;   // MIDI modulation TX update interval (10..100 ms)
+    // This group of parameters is duplicated to provide alternate synth modes...
+    uint8   MidiBasicChannel[2];        // MIDI OUT channel, range: 1..16 (default: 1)
+    uint8   MidiSysExclMsgEnabled[2];   // MIDI SystemExclusive Messages Enabled
+    uint8   MidiProgChangeEnabled[2];   // MIDI Program Change Messages Enabled
+    uint8   MidiExpressionCCnumber[2];  // MIDI Ctrl Change # for breath/pressure messages
+    uint8   Send14bitExprnData[2];      // Expression CC msg uses 14 bit data
+    uint8   LegatoModeEnabled[2];       // Legato Mode Enabled
+    uint8   VelocitySenseEnabled[2];    // Velocity sensing enabled
+    uint8   PitchBendEnabled[2];        // Pitch-Bend enabled
     
-    uint8   Send14bitExprnData;       // Expression CC msg uses 14 bit data (0)
-    uint8   LegatoModeEnabled;        // Legato Mode Enabled (1) [MODE switch override]
-    uint8   VelocitySenseEnabled;     // Velocity sensing enabled (1)
-    uint8   PitchBendEnabled;         // Pitch-Bend enabled (0)
-    uint8   TouchPadLayout;           // Touch-pad layout (pad at LH4 or RH5 pos'n)
+    // This group of parameters is for "long term" H/W configuration constants...
     uint8   FingeringScheme;          // Fingering Scheme (LH4/RH5 flat or sharp)
     uint8   TouchSenseThreshold;      // Touch-pad sense ON/OFF threshold (ADC count)
-    
-    uint8   PresetMidiProgram[8];     // MIDI Program/voice numbers for 8 presets
-    
+    uint8   reserved_1;
     uint16  PressureSensorSpan;       // Pressure sensor span, ADC count (250..750)
     uint16  PitchBendSpan;            // Pitch-Bend sensor span, ADC count (250..750)
     uint16  ModulationMaximum;        // Modulation sensor maximum, ADC count (250..750)
     uint16  ModulationDeadband;       // Modulation sensor dead-band, ADC count (0..500)
+    
+    // Sundry param's
+    uint8   MidiPressureInterval;     // MIDI pressure TX update interval (5..50 ms)
+    uint8   MidiControllerInterval;   // MIDI modulation TX update interval (10..100 ms)
+    int8    PitchOffset;              // Pitch Offset, semitones (typ. -12, -7, 0, +12)
+    
+    uint8   PresetMidiProgram[8];     // MIDI Program/voice numbers for 8 presets
+
     uint16  CheckSum;                 // Data integrity check
 
 } Config_Params_t;
@@ -105,7 +104,8 @@ extern  Config_Params_t  g_Config;
 //
 void    BackgroundTaskExec();
 
-uint16  GetNoteOnOffState();
+uint8   GetNoteOnOffState();
+uint8   GetLastNotePlayed();
 uint16  GetPressureRawReading();
 uint16  GetMidiPressureLevel();
 uint16  GetModulationRawReading();
@@ -114,15 +114,12 @@ uint16  GetModulationPadForce();
 int16   GetPitchBendData();
 
 bool    isPresetButtonPressed();
-void    InstrumentPresetSelect(uint8 preset);
+void    InstrumentPresetSelect(uint8);
+uint8   GetModeSwitchState();
 
 void    DefaultConfigData(void);
 bool    FetchConfigData();
 void    StoreConfigData();
 uint16  CheckConfigData();
-
-
-// External functions.....................
-//
 
 #endif // _MAIN_APP_H

@@ -136,8 +136,6 @@ void  TMR1_InterruptHandler(void)
     v_RTI_flag_1ms_task = 1;  
     if (++count_to_5  >= 5) { v_RTI_flag_5ms_task = 1;  count_to_5 = 0; }
     if (++count_to_50 >= 50) { v_RTI_flag_50ms_task = 1;  count_to_50 = 0; }
-    
-    if (--g_DiagModeTimer_ms == 0)  g_DiagnosticModeActive = 0;
 }
 
 
@@ -230,15 +228,15 @@ void  Delay_ms(uint8 time_ms)
 */
 int  strncomp(char *s1, char * s2, int len)
 {
-	while (len--) 
+    while (len--) 
     {
-		if (*s1 == 0 || *s1 != *s2)
-			return (unsigned char)*s1 - (unsigned char)*s2;
+	if (*s1 == 0 || *s1 != *s2)
+	    return (unsigned char)*s1 - (unsigned char)*s2;
 		
-		s1++;
-		s2++;
-	}
-	return 0;
+	s1++;
+	s2++;
+    }
+    return 0;
 }
 
 
