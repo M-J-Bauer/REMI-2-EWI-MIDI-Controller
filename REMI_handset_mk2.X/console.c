@@ -19,7 +19,7 @@
 #include "main_remi_handset_mk2.h"
 
 //-------------------------------  Private data  --------------------------------------------------
-//                     
+//
 static  char   CLIprompt[] = "\r> ";  // Command line prompt
 static  char   CmndLine[CMND_LINE_MAX_LEN+2];  // Command line buffer
 static  char  *CmndLinePtr;   // Pointer into Cmnd Line buffer
@@ -77,7 +77,7 @@ void  ConsoleCLI_Service(void)
 {
     static bool prep_done = FALSE;
     char  c;
-    
+
     if (!prep_done)  // one-time initialization at start-up
     {
         CmndLineLen = 0;  // prepare for new command
@@ -96,7 +96,7 @@ void  ConsoleCLI_Service(void)
             EraseLine();
             CmndLineLen = 0;              // prep new command line
             CmndLine[0] = 0;
-            CmndLinePtr = CmndLine;  
+            CmndLinePtr = CmndLine;
             putstr(CLIprompt);
             break;
 
@@ -122,7 +122,7 @@ void  ConsoleCLI_Service(void)
             }
             CmndLineLen = 0;                // prep new command line
             CmndLine[0] = 0;
-            CmndLinePtr = CmndLine;  
+            CmndLinePtr = CmndLine;
             putstr(CLIprompt);
             break;
 
@@ -130,7 +130,7 @@ void  ConsoleCLI_Service(void)
             EraseLine();                    // Trash the current command line
             CmndLineLen = 0;                // prep new command line
             CmndLine[0] = 0;
-            CmndLinePtr = CmndLine;  
+            CmndLinePtr = CmndLine;
             putstr(CLIprompt);
             RecallCommand();                // Retrieve previous command from history
             break;
@@ -181,7 +181,7 @@ void  CommandLineInterpreter(void)
     char   c;
     uint8  i;
     bool   cmdNameFound = 0;
-    
+
     CmndLinePtr = CmndLine;  // point to start of Cmnd Line buffer
     for (i = 1;  i < CLI_MAX_ARGS;  i++)   // Clear all command arg's
         { argValue[i] = NULL; }
@@ -212,7 +212,7 @@ void  CommandLineInterpreter(void)
     // This loop searches the command table for the supplied command name...
     for (i = 0;  i < MAX_COMMANDS;  i++)
     {
-        
+
         if (*Command[i].Name == '$')   // reached end of table
             break;
         if (strmatch(argValue[0], Command[i].Name))
@@ -221,7 +221,7 @@ void  CommandLineInterpreter(void)
             break;
         }
     }
-    
+
     if (argCount > 1)       // If there is one or more user-supplied arg(s)...
     {
         if (strmatch(argValue[1], "-help"))    // convert "-help" to '?'
@@ -245,7 +245,7 @@ void  EnterCommandInHistory(void)
     static  bool  initialised = FALSE;
     short  line;
 
-    if (!initialised)  // One-time initialization at start-up 
+    if (!initialised)  // One-time initialization at start-up
     {
         for (line = 0 ; line < CMD_HIST_BUF_SIZE ; line++)
         {
@@ -357,7 +357,7 @@ int  getstr(char *strBuf, int maxLen)
 
     while (!exit)
     {
-        if (RxDataAvail()) 
+        if (RxDataAvail())
         {
             c = getch();  // no echo (yet)
             switch (c)
@@ -430,7 +430,7 @@ void  Cmnd_help(int argCount, char * argValue[])
 /*
     putstr("In usage info, square brackets enclose optional parameters, e.g. [<x1>]; \n");
     putstr("braces enclose alternative options, e.g. {-x|-y }, where '|' means 'OR'. \n");
-*/    
+*/
 }
 
 
@@ -526,7 +526,7 @@ void  Cmnd_default(int argCount, char * argValue[])
     }
     else if (strmatch(argValue[1], "-y")) confirm = TRUE;
 
-    if (confirm) 
+    if (confirm)
     {
         DefaultConfigData();
         putstr("* Default configuration restored.\n");
@@ -563,7 +563,7 @@ void  Cmnd_dump(int argCount, char *argValue[])
     uint16  addr;
     uint8   row, col;
     char    c;
-    
+
     if (argCount == 1 || *argValue[1] == '?')   // help wanted
     {
         putstr("Dump a page (256 bytes) of flash program memory.\n");
@@ -571,7 +571,7 @@ void  Cmnd_dump(int argCount, char *argValue[])
         putstr("-- where addr is start address (hex).\n");
         return;
     }
-    
+
     if (argCount >= 2)  // assume arg[1] is <addr>
         startAddr = hexatoi(argValue[1]) & 0xFFF0;  // mask to 16-byte boundary
 
@@ -593,8 +593,8 @@ void  Cmnd_dump(int argCount, char *argValue[])
         }
         putNewLine();
     }
-    
-    startAddr += 256;  // next page 
+
+    startAddr += 256;  // next page
 }
 
 
@@ -663,7 +663,7 @@ void  Cmnd_preset(int argCount, char *argValue[])
     uint8  preset = (uint8) atoi((const char *) argValue[1]);
     uint8  i,  midi_prgm;
     bool   isBadData = FALSE;
-    
+
     if (argValue[1][0] == '?')  // help wanted
     {
         putstr("Usage #1:  preset    | List Preset MIDI Prgm numbers \n\n");
@@ -679,14 +679,14 @@ void  Cmnd_preset(int argCount, char *argValue[])
         for (preset = 1, i = 1 ; i <= 8 ; i++, preset++)
         {
             putDecimal(preset, 4);  putstr("   |   ");
-            putDecimal(g_Config.PresetMidiProgram[i & 7], 3);  
-			putNewLine();
+            putDecimal(g_Config.PresetMidiProgram[i & 7], 3);
+            putNewLine();
         }
         putstr("_______|_____________\n");
     }
     else if (argCount >= 3)   // Set Preset value
     {
-        if (argValue[2][0] == '=' && argCount == 4)  
+        if (argValue[2][0] == '=' && argCount == 4)
             midi_prgm = (uint8) atoi((const char *) argValue[3]);
         else  midi_prgm = (uint8) atoi((const char *) argValue[2]);
 
@@ -695,18 +695,18 @@ void  Cmnd_preset(int argCount, char *argValue[])
             if (preset == 8)  preset = 0;  // preset #8 index is [0]
             g_Config.PresetMidiProgram[preset] = midi_prgm;
         }
-        else  
+        else
         {
             isBadData = 1;
             putstr("! Invalid preset or MIDI prgm # \n");
         }
-        
+
         if (!isBadData)
         {
             StoreConfigData();
             if (preset == 0)  preset = 8;  // for user interface
             putstr("* Preset ");  putDecimal(preset, 1);
-            putstr(" : MIDI Prgm = ");  putDecimal(midi_prgm, 3);  
+            putstr(" : MIDI Prgm = ");  putDecimal(midi_prgm, 3);
             putNewLine();
         }
     }
@@ -727,53 +727,53 @@ void  Cmnd_config( int argCount, char *argValue[] )
     bool    isBadData = FALSE;
     bool    doShowMoreInfo = FALSE;
     uint8   mode = GetModeSwitchState();  // MODE switch position (0 | 1)
-    
-    if (argValue[1][0] == '?')  // help wanted
+
+    if (argCount == 2 && argValue[1][0] == '?')  // help wanted
     {
-        putstr("Usage #1:  config [*]   |  List config. param's [* info]\n\n");
+        putstr("Usage #1:  config [+]   |  List config. param's [+ more]\n\n");
         //
         putstr("Usage #2:  config <param> [=] <value>    | Set param. value \n");
         putstr("   where <param> is a nickname listed by usage #1. \n\n");
-        putstr("Example:   config  chan = 10    [Set Midi Tx channel = 10] \n\n");
+        putstr("Example:   config  chan = 10   | Set Midi Tx channel = 10 \n\n");
     }
-    else if (argCount == 1)  // View param's 
+    else if (argCount == 1)  // View param's
     {
-        putstr("------- Mode ");  putDecimal(mode, 1);  
+        putstr("------- Mode ");  putDecimal(mode, 1);
         putstr(" Parameters --------------------\n");
-        
+
         putstr("chan    ");  putDecimal(g_Config.MidiBasicChannel[mode], 4);
         putstr("  Midi Basic Channel (1..16) \n");
         putstr("sysxen  ");  putDecimal(g_Config.MidiSysExclMsgEnabled[mode], 4);
         putstr("  Midi Sys.Excl.Msg Enabled (0,1)\n");
         putstr("prchen  ");  putDecimal(g_Config.MidiProgChangeEnabled[mode], 4);
         putstr("  Midi Prog. Change Enabled (0,1)\n");
-        putstr("expncc  ");  putDecimal(g_Config.MidiExpressionCCnumber[mode], 4);
-        putstr("  Midi Expression CC number (0,2,7,11)\n");
-        putstr("expn14b ");  putDecimal(g_Config.Send14bitExprnData[mode], 4);
+        putstr("expncc  ");  putDecimal(g_Config.MidiPressureCCnumber[mode], 4);
+        putstr("  Midi Expression CC number (0..31)\n");
+        putstr("expnint ");  putDecimal(g_Config.MidiPressureInterval[mode], 4);
+        putstr("  Midi Expression Interval (5..50 ms)\n");
+        putstr("expn14b ");  putDecimal(g_Config.MidiSend14bitCCdata[mode], 4);
         putstr("  Send 14-bit Expression data (0,1)\n");
         putstr("legato  ");  putDecimal(g_Config.LegatoModeEnabled[mode], 4);
         putstr("  Legato Mode Enabled (0,1)\n");
         putstr("velsen  ");  putDecimal(g_Config.VelocitySenseEnabled[mode], 4);
         putstr("  Velocity Sense Enabled (0,1)\n");
-        putstr("pbenden ");  putDecimal(g_Config.PitchBendEnabled[mode], 4);
+        putstr("moden   ");  putDecimal(g_Config.ModulationEnabled[mode], 4);
+        putstr("  Modulation Pad Enabled (0,1)\n");
+        putstr("pben    ");  putDecimal(g_Config.PitchBendEnabled[mode], 4);
         putstr("  Pitch Bend Enabled (0,1)\n");
 
         putstr("------- Handset Parameters --------------------\n");
-        
-        putstr("expnint ");  putDecimal(g_Config.MidiPressureInterval, 4);
-        putstr("  Midi Expression Interval (5..50 ms)\n");
-        putstr("modint  ");  putDecimal(g_Config.MidiControllerInterval, 4); 
-        putstr("  Midi Modulation Interval (10..100 ms)\n");
+
         putstr("fingsc  ");  putDecimal(g_Config.FingeringScheme, 4);
         putstr("  Fingering Scheme (0,1,2,3)\n");
         putstr("pitch   ");  putDecimal(g_Config.PitchOffset, 4);
-        putstr("  Pitch Offset (0..+/-24 semitones)\n");
+        putstr("  Pitch Offset (+/-24 semitones)\n");
         putstr("thres   ");  putDecimal(g_Config.TouchSenseThreshold, 4);
         putstr("  Touch Sense Threshold (max.250)\n");
         putstr("prspan  ");  putDecimal(g_Config.PressureSensorSpan, 4);
         putstr("  Pressure Sensor Span (max.750)\n");
         putstr("pbspan  ");  putDecimal(g_Config.PitchBendSpan, 4);
-        putstr("  Pitch-Bend Span (max.1000)\n");
+        putstr("  Pitch Bend Span (max.1000)\n");
         putstr("modmax  ");  putDecimal(g_Config.ModulationMaximum, 4);
         putstr("  Modulation Maximum (max.1000)\n");
         putstr("modband ");  putDecimal(g_Config.ModulationDeadband, 4);
@@ -788,35 +788,33 @@ void  Cmnd_config( int argCount, char *argValue[] )
     {
         strncpy(nickname, (const char *) argValue[1], 8);
         nickname[7] = 0;  // limit length to 7 chars
-        
-        if (argValue[2][0] == '=' && argCount == 4)  
+
+        if (argValue[2][0] == '=' && argCount == 4)
             paramVal = atoi((const char *) argValue[3]);
         else  paramVal = atoi((const char *) argValue[2]);
-/*
-        putstr(": nickname = ");  putstr(nickname);  putNewLine();  // debug use only
-        putstr(": paramVal = ");  putDecimal(paramVal, 1);  putNewLine();
-*/
+
+        // MIDI messaging param's (duplicated) ...
         if (strmatch(nickname, "chan") && paramVal >= 1 && paramVal <= 16)
             g_Config.MidiBasicChannel[mode] = paramVal;
         else if (strmatch(nickname, "sysxen") && paramVal >= 0 && paramVal <= 1)
             g_Config.MidiSysExclMsgEnabled[mode] = paramVal;
         else if (strmatch(nickname, "prchen") && paramVal >= 0 && paramVal <= 1)
             g_Config.MidiProgChangeEnabled[mode] = paramVal;
-        else if (strmatch(nickname, "expncc") && paramVal >= 0 && paramVal < 32)
-            g_Config.MidiExpressionCCnumber[mode] = paramVal;
+        else if (strmatch(nickname, "expncc") && paramVal >= 0 && paramVal <= 31)
+            g_Config.MidiPressureCCnumber[mode] = paramVal;
+        else if (strmatch(nickname, "expnint") && paramVal >= 5 && paramVal <= 50)
+            g_Config.MidiPressureInterval[mode] = paramVal;
         else if (strmatch(nickname, "expn14b") && paramVal >= 0 && paramVal <= 1)
-            g_Config.Send14bitExprnData[mode] = paramVal;
+            g_Config.MidiSend14bitCCdata[mode] = paramVal;
         else if (strmatch(nickname, "legato") && paramVal >= 0 && paramVal <= 1)
             g_Config.LegatoModeEnabled[mode] = paramVal;
-        else if (strmatch(nickname, "pbenden") && paramVal >= 0 && paramVal <= 1)
+        else if (strmatch(nickname, "moden") && paramVal >= 0 && paramVal <= 1)
+            g_Config.ModulationEnabled[mode] = paramVal;
+        else if (strmatch(nickname, "pben") && paramVal >= 0 && paramVal <= 1)
             g_Config.PitchBendEnabled[mode] = paramVal;
         else if (strmatch(nickname, "velsen") && paramVal >= 0 && paramVal <= 1)
             g_Config.VelocitySenseEnabled[mode] = paramVal;
-        
-        else if (strmatch(nickname, "modint") && paramVal >= 10 && paramVal <= 100)
-            g_Config.MidiControllerInterval = paramVal;
-        else if (strmatch(nickname, "expnint") && paramVal >= 5 && paramVal <= 50)
-            g_Config.MidiPressureInterval = paramVal;
+        // Handset config'n param's  
         else if (strmatch(nickname, "fingsc") && paramVal >= 0 && paramVal <= 7)
         {
             g_Config.FingeringScheme = paramVal;
@@ -837,30 +835,30 @@ void  Cmnd_config( int argCount, char *argValue[] )
             g_Config.ModulationMaximum = paramVal;
         else if (strmatch(nickname, "modband") && paramVal >= 0 && paramVal <= 800)
             g_Config.ModulationDeadband = paramVal;
-        else  
+        else
         {
             isBadData = TRUE;
             putstr("! Invalid nickname or value.\n");
         }
-        
+
         if (!isBadData)  // nickname and new param value OK
         {
             StoreConfigData();
             putstr("* New value saved: ");  putDecimal(paramVal, 1);
             putNewLine();
         }
-    
+
 
     }
-    
+
     if (doShowMoreInfo)
     {
         putstr("Fingering scheme: ");
-        if (g_Config.FingeringScheme == 0)  
+        if (g_Config.FingeringScheme == 0)
             putstr("REMI standard -- pad RH5 flattens\n");
-        else if (g_Config.FingeringScheme == 1)  
+        else if (g_Config.FingeringScheme == 1)
             putstr("REMI alternate -- pad LH4 sharpens\n");
-        else if (g_Config.FingeringScheme >= 2)  
+        else if (g_Config.FingeringScheme >= 2)
             putstr("German flute/recorder emulation\n");
         else  putNewLine();
 
@@ -890,31 +888,31 @@ void  Cmnd_diag(int argCount, char * argValue[])
     {
         putstr("Usage:  diag  <option>  [arg1] ... \n");
         putstr("<option> \n");
-//      putstr(" -d :  Test Delay function or macro \n"); 
-//      putstr(" -o :  Task Overrun check \n"); 
-        putstr(" -e :  Show startup self-test Errors \n"); 
-        putstr(" -m :  Show Mode Switch input state \n"); 
-        putstr(" -p :  Show MIDI Pressure data value (14b)\n"); 
-        putstr(" -s :  Show note on/off State \n"); 
-        putstr(" -n :  De/activate Note-On display (arg = 0|1)\n"); 
-        putstr(" -t :  MIDI TX driver test (send 0x0F non-stop)\n"); 
-        putstr(" -q :  MIDI TX Queue test (IDENT msg @ 5ms)\n"); 
+//      putstr(" -d :  Test Delay function or macro \n");
+//      putstr(" -o :  Task Overrun check \n");
+        putstr(" -e :  Show startup self-test Errors \n");
+        putstr(" -m :  Show Mode Switch input state \n");
+        putstr(" -p :  Show MIDI Pressure data value (14b)\n");
+        putstr(" -s :  Show note on/off State \n");
+        putstr(" -n :  De/activate Note-On display (arg = 0|1)\n");
+        putstr(" -t :  MIDI TX driver test (send 0x0F non-stop)\n");
+        putstr(" -q :  MIDI TX Queue test (IDENT msg @ 5ms)\n");
         return;
     }
 
     switch (option)
     {
-    case 'e':  // Self-test Errors  
+    case 'e':  // Self-test Errors
     {
-        if (g_SelfTestErrors == 0)  
+        if (g_SelfTestErrors == 0)
             putstr("* No self-test errors.\n");
         if (g_SelfTestErrors & (1 << TEST_CONFIG_OVERSIZE))  // firmware defect!
             putstr("! Error: Config data exceeds block size\n");
-        if (g_SelfTestErrors & (1 << TEST_CONFIG_INTEGRITY))  
+        if (g_SelfTestErrors & (1 << TEST_CONFIG_INTEGRITY))
             putstr("! Error: Config data corrupted (defaulted)\n");
-        if (g_SelfTestErrors & (1 << TEST_PRESSURE_SENSOR))   
+        if (g_SelfTestErrors & (1 << TEST_PRESSURE_SENSOR))
             putstr("! Error: Pressure Sensor fault\n");
-        if (g_SelfTestErrors & (1 << TEST_MODULATION_SENSOR)) 
+        if (g_SelfTestErrors & (1 << TEST_MODULATION_SENSOR))
             putstr("! Error: Modulation Sensor fault\n");
         break;
     }
@@ -933,7 +931,7 @@ void  Cmnd_diag(int argCount, char * argValue[])
     case 's':  // Show note on/off state
     {
         uint16  state = GetNoteOnOffState();
-        
+
         if (state == NOTE_OFF_IDLE)  putstr("OFF/IDLE (0)\n");
         else if (state == NOTE_ON_PENDING)  putstr("PENDING (1)\n");
         else if (state == NOTE_ON_PLAYING)  putstr("PLAYING (2)\n");
@@ -944,7 +942,7 @@ void  Cmnd_diag(int argCount, char * argValue[])
     {
         if (argCount == 3 && *argValue[2] == '1') g_NoteOnDisplayActive = TRUE;
         else  g_NoteOnDisplayActive = FALSE;
-        if (g_NoteOnDisplayActive)  
+        if (g_NoteOnDisplayActive)
             putstr("* Note-On display activated. Enter 'diag -n' to cancel.\n");
         break;
     }
@@ -956,7 +954,7 @@ void  Cmnd_diag(int argCount, char * argValue[])
         while (key != ASCII_ESC)
         {
             EUSART2_WriteByte(0x0F);  // TX direct to UART2
-            
+
             if (kbhit()) key = getch();  // console key hit
         }
         break;
@@ -968,7 +966,7 @@ void  Cmnd_diag(int argCount, char * argValue[])
         putstr("via MIDI transmit queue.  Message interval is 5ms. \n");
         putstr("Hit [Esc] to exit... \n");
         captureTime = milliseconds();
-        
+
         while (key != ASCII_ESC)
         {
             if ((milliseconds() - captureTime) < 5)  // every 5ms ...
@@ -980,7 +978,7 @@ void  Cmnd_diag(int argCount, char * argValue[])
                 MIDI_PutByte(SYSTEM_MSG_EOX);      // end-of-msg code (0xF7)
             }
             MIDI_TxQueueHandler();
-            
+
             if (kbhit()) key = getch();  // console key hit
         }
         break;
@@ -992,9 +990,9 @@ void  Cmnd_diag(int argCount, char * argValue[])
         putstr("Connect scope probe to TP2. \n");
         putstr("TP2 pulses High for 5 iterations of DELAY_1us(). \n");
         putstr("Reset MCU to exit... \n");
-        
+
         GlobalInterruptDisable();    // Suspend IRQ's and B/G tasks
-        
+
         while (1)
         {
             TESTPOINT_TP2_SET_HI();
@@ -1010,7 +1008,7 @@ void  Cmnd_diag(int argCount, char * argValue[])
         }
         break;
     }
-    case 'o':  // Task Overrun check  
+    case 'o':  // Task Overrun check
     {
         uint8  overruns;
         captureTime = milliseconds();
@@ -1038,12 +1036,12 @@ void  Cmnd_diag(int argCount, char * argValue[])
 void  Cmnd_tsens(int argCount, char * argValue[])
 {
     uint8  pad;
-    char   option = 'l';  
+    char   option = 'l';
     short  numPads = TouchPadsGetNumber();
     int    filt;
- 
+
     if (argCount > 1)  option = tolower(argValue[1][1]);
-    
+
     if (option == 'l')  // list .. default cmd option
     {
         putstr("________________________________\n");
@@ -1051,7 +1049,7 @@ void  Cmnd_tsens(int argCount, char * argValue[])
         putstr("````````|```````````|```````````\n");
         for (pad = 0 ; pad < numPads ; pad++)
         {
-            putDecimal(pad, 5);  
+            putDecimal(pad, 5);
             putstr("   |  ");
             putDecimal(TouchPadGetRawADC(pad), 5);
             putstr("    |  ");
