@@ -373,8 +373,8 @@ PRIVATE  uint8  NoteNumberFromKeyPattern(uint16 fingerPattern)
     {
         if ((top6Fingers == 0b111111) && padRH4 && !padRH5) noteNumber = 60;  // C4
         if ((top6Fingers == 0b111111) && !padRH4 && padRH5) noteNumber = 61;  // C#4 (Db4)
-        if ((top6Fingers == 0b011111) && padRH4 && !padRH5) noteNumber = 60;  // C5
-        if ((top6Fingers == 0b011111) && !padRH4 && padRH5) noteNumber = 61;  // C#5 (Db5)
+        if ((top6Fingers == 0b011111) && padRH4 && !padRH5) noteNumber = 72;  // C5
+        if ((top6Fingers == 0b011111) && !padRH4 && padRH5) noteNumber = 73;  // C#5 (Db5)
     }
     else if (g_Config.FingeringScheme == KEYING_SCHEME_REMI_ALT)  // Pad at LH4
     {
@@ -698,11 +698,13 @@ PRIVATE  void  PresetButtonMonitor()
  *
  * If the button press is detected while there is no note playing, then...
  *     if there is no touch-pad touched,
- *         then a MIDI 'Reset' and 'All Sound Off' messages are sent;
+ *         then a MIDI 'All Sound Off' message is sent;
  *     otherwise, if one top-surface pad and no OCT pads are touched,
  *         then the PRESET selected by that touch-pad is activated;
  *     otherwise, if an octave pad is touched,
- *         then the 'pitch offset' param is set accordingly. (See User Manual.)
+ *         then the 'Pitch-Offset' param is set accordingly. 
+ *
+ * (See 'REMI 2 User Manual' for details.)
  *
  * ------------------------------------------------------------------------------------
  */
@@ -727,7 +729,7 @@ PRIVATE  void   PresetButtonActionTask()
         if (m_TouchPadStates == 0) // No pads touched -- send MIDI reset, etc
         {
             MIDI_SendAllSoundOff(channel);
-            MIDI_SendResetAllControllers(channel);
+//          MIDI_SendResetAllControllers(channel);
         }
         else if (octvpads == 0 && top8pads != 0x00)  // One or more top pad(s) touched
         {

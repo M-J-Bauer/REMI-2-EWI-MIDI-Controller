@@ -20,7 +20,7 @@
 //
 #define BUILD_VER_MAJOR   1
 #define BUILD_VER_MINOR   4
-#define BUILD_VER_DEBUG   20
+#define BUILD_VER_DEBUG   21
 //
 // =======================================================================================
 
