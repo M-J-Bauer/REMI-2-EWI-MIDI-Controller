@@ -88,7 +88,7 @@ v1.4.10  20-JUN-2022
    it is not playable on an acoustic recorder.
 
 ------------------------------------------------------------------------------------------
-v1.4.20  23-AUG-2022
+v1.4.21  26-AUG-2022
 ````````````````````
 Added a config param to enable/disable modulation messages (for each mode).
 Deleted config param to set modulation message interval; now fixed at 30ms.
@@ -104,6 +104,9 @@ A REMI Sys-Ex 'PRESET' message is also sent.  This message type contains the
 active Preset number (0..7) plus the handset firmware version number, a byte
 containing self-test error flags, plus various handset configuration parameters.
 (For exclusive use by the REMI Synth mk2.)
+
+Fixed a bug in the REMI 'standard' fingering. C4 was played instead of C5 in the second
+octave, i.e. with pad LH1 not touched.
 
 __________________________________________________________________________________________
 
