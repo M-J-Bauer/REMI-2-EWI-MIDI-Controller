@@ -6,8 +6,7 @@ REMI 2 is a simple MIDI controller with standard MIDI OUT connection (5-pin DIN 
 A low-cost ($10) MIDI-USB adapter allows the REMI to be used with a "virtual synthesizer" (software app) running on a computer or mobile device.
 (If you prefer an "all-in-one" EWI design, take a look at REMI 3.) 
 
-Latest firmware supports a choice of recorder-like fingering schemes including accurate emulation of German flute/recorders
-and modern English recorders. 
+Latest firmware supports a choice of recorder-like fingering schemes including emulation of Baroque (German and English) fingering. 
 The "standard" REMI fingering is designed to be easy to learn, for beginners with no previous experience of wind instruments.
 
 A full description of the project can be found in the doc folder. See also: http://www.mjbauer.biz/REMI_Intro.htm
