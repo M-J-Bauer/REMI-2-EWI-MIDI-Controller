@@ -57,7 +57,8 @@ ________________________________________________________________________________
 
 v1.4.10  20-JUN-2022
 ````````````````````
-1. Added German flute/recorder fingering scheme to emulate acoustic recorders.
+1. Added Baroque fingering scheme to emulate acoustic recorders.
+   The same scheme works with either English or German fingering charts!
 
    Octave pads emulate acoustic instruments with thumb "half-hole" operation...
      OCT+ (or both OCT+ and OCT-) == full-hole;  OCT- (only) == half-hole.
@@ -65,7 +66,7 @@ v1.4.10  20-JUN-2022
    The config. parameter 'fingsc' (fingering scheme) may be set to 0, 1, 2 or 3.
      0 => Original REMI fingering -- pad at RH5 acts as RH4 "half-hole";
      1 => Alternate REMI scheme -- pad at LH4 sharpens C and F (no pad at RH5)
-     2 => German flute/recorder fingering -- RH5 acts as RH4 "half-hole";
+     2 => Baroque recorder fingering -- RH5 acts as RH4 "half-hole";
      3 => Same as 2, except pad at LH4 acts as RH4 "half-hole" (no pad at RH5)
 
 2. Added Pitch Offset parameter, settable to any value in the range (0..+/-24) via CLI
@@ -108,16 +109,39 @@ containing self-test error flags, plus various handset configuration parameters.
 Fixed a bug in the REMI 'standard' fingering. C4 was played instead of C5 in the second
 octave, i.e. with pad LH1 not touched.
 
+------------------------------------------------------------------------------------------
+v1.4.40  05-MAR-2023
+````````````````````
+Added functions to support pitch bend using MMA8451/2 motion sensor.
+
+Not fully tested with synth.
+
+When pitch bend operation is validated, this revision is to be bumped to v1.5.xx.
+
+v1.4.42  07-APR-2023
+````````````````````
+Improved Pitch-bend operation (with MMA8451 motion sensor)...
+The overall position/tilt range is limited to 60 degrees, with the "zero" (centre)
+position approximately in the middle of this range.
+
+For best results, the player should angle the handset about 45 degrees from the
+horizontal whenever no note is playing, to set the "centre/zero" position.
+
+v1.4.42  07-APR-2023
+````````````````````
+Improved Pitch-bend operation...
+Imposed dead-band = 200 units either side of centre "zero" pos'n.
+Reduced time-lag due to smoothing algorithm.
+
+
 __________________________________________________________________________________________
 
 To Do: [future revisions]
 `````````````````````````
-* Support pitch bend sensor -- MMA8451 I2C accelerometer chip. (v1.5)
-
-* Alternative build option using PIC18F25K22 (28-pin DIP).  (v2.0)
+* Support alternate build option using PIC18F25K22 (28-pin DIP).
 
 * Bootloader using USB/serial port for firmware update without PICkit_3.
-
+  (See Microchip website for PIC18 serial bootloader and Windows DFU app.)
 
 __________________________________________________________________________________________
 
