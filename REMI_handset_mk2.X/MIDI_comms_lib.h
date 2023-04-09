@@ -46,7 +46,7 @@
 void   MIDI_SendNoteOn(uint8 chan, uint8 noteNum, uint8 velocity);
 void   MIDI_SendNoteOff(uint8 chan, uint8 noteNum);
 void   MIDI_SendAfterTouch(uint8 chan, uint8 level);
-void   MIDI_SendPitchBend(uint8 chan, int16 value);
+void   MIDI_SendPitchBend(uint8 chan, uint16 value);
 void   MIDI_SendControlChange(uint8 chan, uint8 ctrlNum, uint8 value);
 void   MIDI_SendProgramChange(uint8 chan, uint8 progNum);
 

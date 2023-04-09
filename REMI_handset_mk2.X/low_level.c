@@ -485,4 +485,78 @@ void  FlashEraseBlock(uint16 baddr)
 }
 
 
+/*  
+ * Function MMA8451_Setup() prepares the MMA8451/MMA8452 sensor device for measuring
+ * acceleration (g-force) on the Z-axis (up/down tilt of the REMI handset). 
+ * 
+ * Note:  Data register values are in units of ADC count as shown below:
+ *        Full-scale @ 2g  |  max. value = +/-2047  |  unit = 1/1024 g
+ *        Full-scale @ 4g  |  max. value = +/-4095  |  unit = 1/512 g
+ *        Full-scale @ 8g  |  max. value = +/-8191  |  unit = 1/256 g
+ * 
+ * Entry arg's:   accel_FS = 2, 4 or 8 g (where g = 9.8 m/s/s)
+ * 
+ * Return value:  1 if MMA8451 detected;  2 if MMA8452 detected;  else 0.
+ */
+uint8  MMA8451_Setup(uint8 accel_FS)
+{
+    uint8  regData, devID = 0;
+    
+    I2C2_init(I2C_RATE_400K);
+    
+    regData = MMA8451_RegisterRead(0x0D);  // Read 'WHO_AM_I' register
+    if (regData == 0x1A) devID = 1;
+    else if (regData == 0x2A) devID = 2;
+    else  return 0;  // device not responding... bail
+     
+    MMA8451_RegisterWrite(0x2A, 0x01);     // CTRL_REG1 = ACTIVE, samplerate = 800Hz
+    regData = MMA8451_RegisterRead(0x2A);  // Read back CTRL_REG1
+    if (regData != 0x01)  devID = 0;       // data verify failed... return 0
+    
+    if (accel_FS >= 8) MMA8451_RegisterWrite(0x0E, 0x02);  // XYZ_DATA_CFG = 0x02
+    else if (accel_FS >= 4) MMA8451_RegisterWrite(0x0E, 0x01);  // XYZ_DATA_CFG = 0x01
+    else  MMA8451_RegisterWrite(0x0E, 0x00);  // XYZ_DATA_CFG = 0x00 (default)
+        
+    return devID;
+}
+
+
+/*  
+ * Function MMA8451_RegisterWrite() writes data into a specified register. 
+ * 
+ * Entry arg's:   reg = register address;  bDat = data to write
+ * 
+ * Return value:  --
+ */
+void  MMA8451_RegisterWrite(uint8 reg, uint8 bDat)
+{
+    I2C2_start();
+    I2C2_write(0x1D << 1);  // slave address | 0 = write
+    I2C2_write(reg); 
+    I2C2_write(bDat); 
+    I2C2_stop();
+}
+
+
+/*  
+ * Function MMA8451_RegisterRead() reads data out of a specified register. 
+ * 
+ * Entry arg's:   reg = register address
+ * 
+ * Return value:  (byte) register data
+ */
+uint8  MMA8451_RegisterRead(uint8 reg)
+{
+    uint8  bDat;
+    
+    I2C2_start();
+    I2C2_write(0x1D << 1);  // slave address | 0 = write
+    I2C2_write(reg); 
+    I2C2_repStart();
+    I2C2_write((0x1D << 1) | 1);  // slave address | 1 = read
+    bDat = I2C2_read(I2C_NAK);    // read data;  NAK stop
+    
+    return bDat;
+}
+
 // end of file

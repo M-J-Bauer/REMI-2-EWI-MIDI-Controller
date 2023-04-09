@@ -62,6 +62,7 @@
 // Application-specific data -- external
 extern uint8 g_FW_version[];            // firmware version # (major, minor, build)
 extern bool  g_NoteOnDisplayActive;     // Set true to enable Note-On display (in CLI)
+extern bool  g_DiagModeActive;          // Diagnostic Mode active flag
 
 // The application must provide these "callback" functions, even if they do nothing:
 extern uint32  milliseconds();          // Time elapsed since last MCU reset (ms)

@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "gendef.h"              // MJB's common typedefs, macro defs, etc
+#include "I2C2_drv.h"
 
 #define F_OSC_MHz    (16)        // MCU clock freq. (MHz)
 #define _XTAL_FREQ  16000000     // K22 instruction cycle time is 4 x OSC period.
@@ -126,6 +127,10 @@ uint8 FlashReadByte(uint16 addr);
 void  FlashReadData(uint8 *pdat, uint16 faddr, uint8 nbytes);
 void  FlashEraseBlock(uint16 baddr);
 void  FlashWriteBlock(uint8 *pdat, uint16 baddr);
+
+uint8 MMA8451_Setup(uint8 accel_FS);
+void  MMA8451_RegisterWrite(uint8 reg, uint8 bDat);
+uint8 MMA8451_RegisterRead(uint8 reg);
 
 void  BootReset(void);
 

@@ -739,28 +739,29 @@ void  Cmnd_config( int argCount, char *argValue[] )
     else if (argCount == 1)  // View param's
     {
         putstr("------- Mode ");  putDecimal(mode, 1);
-        putstr(" Parameters --------------------\n");
+        putstr(" MIDI Parameters ---------------\n");
 
         putstr("chan    ");  putDecimal(g_Config.MidiBasicChannel[mode], 4);
-        putstr("  Midi Basic Channel (1..16) \n");
+        putstr("  MIDI OUT Channel (1..16) \n");
         putstr("sysxen  ");  putDecimal(g_Config.MidiSysExclMsgEnabled[mode], 4);
-        putstr("  Midi Sys.Excl.Msg Enabled (0,1)\n");
+        putstr("  Sys.Excl. Msg Enable (0,1)\n");
         putstr("prchen  ");  putDecimal(g_Config.MidiProgChangeEnabled[mode], 4);
-        putstr("  Midi Prog. Change Enabled (0,1)\n");
-        putstr("expncc  ");  putDecimal(g_Config.MidiPressureCCnumber[mode], 4);
-        putstr("  Midi Expression CC number (0..31)\n");
-        putstr("expnint ");  putDecimal(g_Config.MidiPressureInterval[mode], 4);
-        putstr("  Midi Expression Interval (5..50 ms)\n");
-        putstr("expn14b ");  putDecimal(g_Config.MidiSend14bitCCdata[mode], 4);
-        putstr("  Send 14-bit Expression data (0,1)\n");
-        putstr("legato  ");  putDecimal(g_Config.LegatoModeEnabled[mode], 4);
-        putstr("  Legato Mode Enabled (0,1)\n");
-        putstr("velsen  ");  putDecimal(g_Config.VelocitySenseEnabled[mode], 4);
-        putstr("  Velocity Sense Enabled (0,1)\n");
+        putstr("  Prog. Change Enable (0,1)\n");
+        putstr("pben    ");  putDecimal(g_Config.MidiPitchBendEnabled[mode], 4);
+        putstr("  Pitch Bend Enable (0,1)\n");
         putstr("moden   ");  putDecimal(g_Config.ModulationEnabled[mode], 4);
-        putstr("  Modulation Pad Enabled (0,1)\n");
-        putstr("pben    ");  putDecimal(g_Config.PitchBendEnabled[mode], 4);
-        putstr("  Pitch Bend Enabled (0,1)\n");
+        putstr("  Modulation (CC1) Enable (0,1)\n");
+        putstr("expncc  ");  putDecimal(g_Config.MidiPressureCCnumber[mode], 4);
+        putstr("  Expression CC number (0..31)\n");
+        putstr("expnint ");  putDecimal(g_Config.MidiPressureInterval[mode], 4);
+        putstr("  Expression Interval (5..50 ms)\n");
+        putstr("cc14b   ");  putDecimal(g_Config.MidiSend14bitCCdata[mode], 4);
+        putstr("  CC 14-bit Data Enable(0,1)\n");
+        putstr("legato  ");  putDecimal(g_Config.LegatoModeEnabled[mode], 4);
+        putstr("  Legato Mode Enable (0,1)\n");
+        putstr("velsen  ");  putDecimal(g_Config.VelocitySenseEnabled[mode], 4);
+        putstr("  Velocity Sense Enable (0,1)\n");
+        
 
         putstr("------- Handset Parameters --------------------\n");
 
@@ -769,15 +770,15 @@ void  Cmnd_config( int argCount, char *argValue[] )
         putstr("pitch   ");  putDecimal(g_Config.PitchOffset, 4);
         putstr("  Pitch Offset (+/-24 semitones)\n");
         putstr("thres   ");  putDecimal(g_Config.TouchSenseThreshold, 4);
-        putstr("  Touch Sense Threshold (max.250)\n");
+        putstr("  Touch Sense Threshold (max.250)\n");       
         putstr("prspan  ");  putDecimal(g_Config.PressureSensorSpan, 4);
-        putstr("  Pressure Sensor Span (max.750)\n");
+        putstr("  Pressure Sensor ADC Span (max.1000)\n");
         putstr("pbspan  ");  putDecimal(g_Config.PitchBendSpan, 4);
-        putstr("  Pitch Bend Span (max.1000)\n");
+        putstr("  Pitch Bend ADC Span (max.1000)\n");
         putstr("modmax  ");  putDecimal(g_Config.ModulationMaximum, 4);
-        putstr("  Modulation Maximum (max.1000)\n");
+        putstr("  Modulation Full-scale (max.1000)\n");
         putstr("modband ");  putDecimal(g_Config.ModulationDeadband, 4);
-        putstr("  Modulation Dead-band (max.500)\n");
+        putstr("  Modulation Dead-band (max.900)\n");
         putstr("\n");
     }
     else if (argCount == 2)  // Show more detail on 'fingsc' and 'pitch'
@@ -800,20 +801,21 @@ void  Cmnd_config( int argCount, char *argValue[] )
             g_Config.MidiSysExclMsgEnabled[mode] = paramVal;
         else if (strmatch(nickname, "prchen") && paramVal >= 0 && paramVal <= 1)
             g_Config.MidiProgChangeEnabled[mode] = paramVal;
+        else if (strmatch(nickname, "pben") && paramVal >= 0 && paramVal <= 1)
+            g_Config.MidiPitchBendEnabled[mode] = paramVal;
         else if (strmatch(nickname, "expncc") && paramVal >= 0 && paramVal <= 31)
             g_Config.MidiPressureCCnumber[mode] = paramVal;
         else if (strmatch(nickname, "expnint") && paramVal >= 5 && paramVal <= 50)
             g_Config.MidiPressureInterval[mode] = paramVal;
-        else if (strmatch(nickname, "expn14b") && paramVal >= 0 && paramVal <= 1)
+        else if (strmatch(nickname, "cc14b") && paramVal >= 0 && paramVal <= 1)
             g_Config.MidiSend14bitCCdata[mode] = paramVal;
         else if (strmatch(nickname, "legato") && paramVal >= 0 && paramVal <= 1)
             g_Config.LegatoModeEnabled[mode] = paramVal;
         else if (strmatch(nickname, "moden") && paramVal >= 0 && paramVal <= 1)
             g_Config.ModulationEnabled[mode] = paramVal;
-        else if (strmatch(nickname, "pben") && paramVal >= 0 && paramVal <= 1)
-            g_Config.PitchBendEnabled[mode] = paramVal;
         else if (strmatch(nickname, "velsen") && paramVal >= 0 && paramVal <= 1)
             g_Config.VelocitySenseEnabled[mode] = paramVal;
+        
         // Handset config'n param's  
         else if (strmatch(nickname, "fingsc") && paramVal >= 0 && paramVal <= 7)
         {
@@ -833,7 +835,7 @@ void  Cmnd_config( int argCount, char *argValue[] )
             g_Config.PitchBendSpan = paramVal;
         else if (strmatch(nickname, "modmax") && paramVal >= 100 && paramVal <= 1000)
             g_Config.ModulationMaximum = paramVal;
-        else if (strmatch(nickname, "modband") && paramVal >= 0 && paramVal <= 800)
+        else if (strmatch(nickname, "modband") && paramVal >= 0 && paramVal <= 900)
             g_Config.ModulationDeadband = paramVal;
         else
         {
@@ -847,8 +849,6 @@ void  Cmnd_config( int argCount, char *argValue[] )
             putstr("* New value saved: ");  putDecimal(paramVal, 1);
             putNewLine();
         }
-
-
     }
 
     if (doShowMoreInfo)
@@ -859,7 +859,7 @@ void  Cmnd_config( int argCount, char *argValue[] )
         else if (g_Config.FingeringScheme == 1)
             putstr("REMI alternate -- pad LH4 sharpens\n");
         else if (g_Config.FingeringScheme >= 2)
-            putstr("German flute/recorder emulation\n");
+            putstr("Baroque recorder emulation\n");
         else  putNewLine();
 
         putstr("Pitch Offset: ");  putDecimal(g_Config.PitchOffset, 4);
@@ -888,8 +888,8 @@ void  Cmnd_diag(int argCount, char * argValue[])
     {
         putstr("Usage:  diag  <option>  [arg1] ... \n");
         putstr("<option> \n");
-//      putstr(" -d :  Test Delay function or macro \n");
-//      putstr(" -o :  Task Overrun check \n");
+        putstr(" -a :  Show MMA8451/2 accel. raw data \n");
+        putstr(" -b :  Show pitch-bend controller data \n");
         putstr(" -e :  Show startup self-test Errors \n");
         putstr(" -m :  Show Mode Switch input state \n");
         putstr(" -p :  Show MIDI Pressure data value (14b)\n");
@@ -897,6 +897,7 @@ void  Cmnd_diag(int argCount, char * argValue[])
         putstr(" -n :  De/activate Note-On display (arg = 0|1)\n");
         putstr(" -t :  MIDI TX driver test (send 0x0F non-stop)\n");
         putstr(" -q :  MIDI TX Queue test (IDENT msg @ 5ms)\n");
+        
         return;
     }
 
@@ -983,46 +984,75 @@ void  Cmnd_diag(int argCount, char * argValue[])
         }
         break;
     }
-#if 0  // deprecated diag command option(s)...
-    case 'd':  // Delay test (for development)
+    case 'a':  // Show MMA8451/2 accelerometer raw data
     {
-        putstr("Test execution time of DELAY_1us() macro. \n");
-        putstr("Connect scope probe to TP2. \n");
-        putstr("TP2 pulses High for 5 iterations of DELAY_1us(). \n");
-        putstr("Reset MCU to exit... \n");
-
-        GlobalInterruptDisable();    // Suspend IRQ's and B/G tasks
-
-        while (1)
+        int16  rawData;
+        
+        if (MMA8451_Setup(2) == FALSE)
         {
-            TESTPOINT_TP2_SET_HI();
-            DELAY_1us();
-            DELAY_1us();
-            DELAY_1us();
-            DELAY_1us();
-            DELAY_1us();
-            TESTPOINT_TP2_SET_LO();
-            DELAY_1us();
-            DELAY_1us();
-            DELAY_1us();
+            putstr("! MMA8451/2 device not detected.\n");
+            break;
         }
+        
+        rawData = MMA8451_RegisterRead(0x0D);  // read 'WHO_AM_I' register
+        if (rawData == 0x1A) putstr("* MMA8451 detected.\n");
+        else if (rawData == 0x2A) putstr("* MMA8452 detected.\n");
+        else  putstr("! Unknown I2C device.\n");
+        
+        putstr("Normal handset operation suspended while outputting axis \n");
+        putstr("acceleration raw data (12 bits) -- Hit any key to exit...\n");
+        
+        while (!kbhit())
+        {
+            rawData = MMA8451_RegisterRead(0x01);  // read OUT_X_MSB
+            rawData = rawData << 8;
+            rawData += MMA8451_RegisterRead(0x02);  // read OUT_X_LSB
+            putstr("   X: ");  putDecimal((rawData >> 4), 6);  // get 12 MS bits
+            
+            rawData = MMA8451_RegisterRead(0x03);  // read OUT_Y_MSB
+            rawData = rawData << 8;
+            rawData += MMA8451_RegisterRead(0x04);  // read OUT_Y_LSB
+            putstr(" | Y: ");  putDecimal((rawData >> 4), 6);  // get 12 MS bits
+            
+            rawData = MMA8451_RegisterRead(0x05);  // read OUT_Z_MSB
+            rawData = rawData << 8;
+            rawData += MMA8451_RegisterRead(0x06);  // read OUT_Z_LSB
+            putstr(" | Z: ");  putDecimal((rawData >> 4), 6);  // get 12 MS bits
+            
+            putch('\r');    // Return terminal cursor to start of line
+            Delay_ms(200);  // Delay 200ms for update rate = 5/sec
+        }
+        
+        putNewLine();
         break;
     }
-    case 'o':  // Task Overrun check
+    case 'b':  // Show pitch-bend controller data
     {
-        uint8  overruns;
+        g_DiagModeActive = TRUE;  // Inhibit Auto-zero task in main loop
+        putstr("Touch octave pad(s) to show position value (not scaled).\n");
+        putstr("Hit any key to exit...\n");
         captureTime = milliseconds();
-        v_TaskOverrunCount = 0;
-        while (milliseconds() < (captureTime + 200))
+        
+        while (!kbhit())
         {
-            BackgroundTaskExec();  // loop for 200ms
+            BackgroundTaskExec();  // Auto-zero task inhibited in diag mode
+            
+            if ((milliseconds() - captureTime) > 200)  // 5 times/sec
+            {
+                captureTime = milliseconds();  
+                
+                if ((TouchPadStates() & 0x300) == 0) 
+                    MotionSensorUpdateTask(1);  // reset "zero" position
+                
+                putstr("  ");  putDecimal(GetMotionSensorData(), 6);
+                putch('\r');   // Return terminal cursor to start of line
+            }
         }
-        overruns = v_TaskOverrunCount / 2;  // in 100ms
-        putstr("Task overruns in 100ms: ");
-        putDecimal(overruns, 1);  putNewLine();
+        
+        putNewLine();
+        g_DiagModeActive = FALSE;
         break;
     }
-#endif
     } // end switch
 }
 

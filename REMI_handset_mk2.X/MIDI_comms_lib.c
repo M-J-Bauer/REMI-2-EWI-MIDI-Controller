@@ -81,7 +81,7 @@ void  MIDI_SendAfterTouch(uint8 chan, uint8 level)
  * Entry args:   chan = MIDI channel number (1..16)
  *               value = Pitch deviation value (14 bits). Unit depends on MIDI device.
  */
-void  MIDI_SendPitchBend(uint8 chan, int16 value)
+void  MIDI_SendPitchBend(uint8 chan, uint16 value)
 {
     uint8   statusByte = 0xE0 | ((chan - 1) & 0xF);
 

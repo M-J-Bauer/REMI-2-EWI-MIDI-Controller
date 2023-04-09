@@ -27,16 +27,17 @@
 // Functions private within this module..........
 //
 PRIVATE  void   APP_Initialize();
+PRIVATE  void   SendBreathPressureUpdate();
 PRIVATE  void   SendPitchBendUpdate();
-PRIVATE  void   PitchBendAutoZeroTask();
 PRIVATE  void   SendModulationUpdate();
 PRIVATE  void   NoteOnOffStateTask();
-PRIVATE  void   ReadSensorsTask();
+PRIVATE  void   ReadAnalogSensors();
 PRIVATE  void   CalcMidiPressureLevel(void);
 PRIVATE  void   PresetButtonMonitor();
 PRIVATE  void   PresetButtonActionTask();
 PRIVATE  void   ModeSwitchState();
 PRIVATE  void   SendRemiIdentMessage();
+PRIVATE  void   PitchBendAutoZero();
 
 
 // ----------------  Global data  -------------------------------
@@ -45,6 +46,7 @@ uint8   g_FW_version[4];          // firmware version # (major, minor, build, 0)
 char   *g_AppTitleCLI;            // Title string output by CLI "ver" command
 uint8   g_SelfTestErrors;         // Self-test fault codes (0 => no fault)
 bool    g_NoteOnDisplayActive;    // Set true to enable Note-On display (in CLI)
+bool    g_DiagModeActive;         // Diagnostic Mode active flag
 
 Config_Params_t  g_Config;
 
@@ -61,11 +63,15 @@ static  uint16  m_PressureThresholdNoteOn;
 static  uint16  m_PressureThresholdNoteOff;
 static  uint8   m_Pressure_Hi;
 static  uint8   m_Pressure_Lo;
-
 static  uint16  m_ModulationSensorReading;
 static  uint16  m_ModulationZeroLevel;
-static  uint16  m_PitchBendSensorReading;
-static  uint16  m_PitchBendZeroLevel;
+static  uint8   m_Modulation_Hi;
+static  uint8   m_Modulation_Lo;
+
+static  uint8   m_PitchBendSensorType;       // 0: Analog, 1: MMA8451, 2: MMA8452)
+static  uint16  m_PitchBendSensorReading;    // for Analog sensor
+static  uint16  m_PitchBendZeroLevel;        // for Analog sensor
+static  int32   m_MotionSensorReading;       // from MMA8451/8452 (signed, 0..+/-2K)
 
 
 //=================================================================================================
@@ -85,6 +91,8 @@ PRIVATE  void  APP_Initialize()
     EUSART2_init(31250);    // for MIDI TX port
     TMR1_Initialize();      // Set up RTI Timer
     TouchSenseInit();
+    
+    m_PitchBendSensorType = MMA8451_Setup(2);  // = 0, 1 or 2
 
     GlobalInterruptEnable();
     PeripheralInterruptEnable();
@@ -122,7 +130,7 @@ void  main(void)
         {
             v_RTI_flag_5ms_task = 0;
             LED1_ON();
-            ReadSensorsTask();
+            ReadAnalogSensors();
         }
     }
 
@@ -170,18 +178,20 @@ void  BackgroundTaskExec()
     if (v_RTI_flag_5ms_task)     // Do 5ms periodic tasks
     {
         v_RTI_flag_5ms_task = 0;
-        ReadSensorsTask();
+        ReadAnalogSensors();
         m_TouchPadStates = TouchPadStates() & 0x3FF;
         CalcMidiPressureLevel();
+        
         NoteOnOffStateTask();
         PresetButtonMonitor();
+        if (m_PitchBendSensorType != 0) MotionSensorUpdateTask(0);
     }
 
     if (v_RTI_flag_50ms_task)    // Do 50ms periodic tasks
     {
         v_RTI_flag_50ms_task = 0;
         LED1_ON();
-        PitchBendAutoZeroTask();
+        if (!g_DiagModeActive) PitchBendAutoZero();
 
         if (++count_50ms == 4)   // Do 200ms periodic tasks
         {
@@ -301,7 +311,7 @@ PRIVATE  uint8  NoteNumberFromKeyPattern(uint16 fingerPattern)
 {
     // MIDI note number from finger pattern, assuming RH4 = 0, before octave adjusted.
     // This table is used for the REMI simplified fingering schemes (#0 and #1).
-    // Also used for the 'German' fingering schemes (#2 and #3) in the lower octave,
+    // Also used for the Baroque fingering schemes (#2 and #3) in the lower octave,
     // with some exceptions.
     static  uint8   baseNoteNumber[] =
     {
@@ -317,7 +327,7 @@ PRIVATE  uint8  NoteNumberFromKeyPattern(uint16 fingerPattern)
         67,  66,  66,  66,  65,  65,  64,  62   //  111
     };
 
-    // This table is used for the 'German' keying schemes (#2, #3) in the upper octave,
+    // This table is used for the Baroque keying schemes (#2, #3) in the upper octave,
     // (notes C5..E5), where neither of the octave pads is touched.
     static  uint8   NoteNumberGF0[] =
     {
@@ -333,8 +343,8 @@ PRIVATE  uint8  NoteNumberFromKeyPattern(uint16 fingerPattern)
         78,  78,  78,  78,  77,  77,  76,  75   //  111 = Eb5/E5/F5/F#5
     };
 
-    // [ ^NS denotes 'Not Specified' in the fingering chart. ]
-    // This table is used for the 'German' keying schemes (#2, #3) in the upper octaves
+    // ^NS denotes 'Not Specified' in the fingering chart.
+    // This table is used for the Baroque keying schemes (#2, #3) in the upper octaves
     // (notes C#5..G6), where octave pad OCT- is touched , i.e. thumb 'half-hole'.
     static  uint8   NoteNumberGF1[] =
     {
@@ -390,7 +400,7 @@ PRIVATE  uint8  NoteNumberFromKeyPattern(uint16 fingerPattern)
     if (octavePads == 1) noteNumber -= 12;  // lower 1 octave
     if (octavePads == 2) noteNumber += 12;  // raise 1 octave
 
-    if (g_Config.FingeringScheme >= KEYING_SCHEME_GERMAN)  // Scheme #2 or #3
+    if (g_Config.FingeringScheme >= KEYING_SCHEME_BAROQUE)  // Scheme #2 or #3
     {
         if (octavePads & 2)  // OCT+ touched ("full hole" keyed)
         {
@@ -474,7 +484,6 @@ PRIVATE  void  NoteOnOffStateTask()
     static  uint32  stateTimer_ms;
     static  uint32  PressureUpdateTimer_ms;
     static  uint32  controllerUpdateTimer_ms;
-    static  uint16  LastPressure;
     static  uint8   noteNumPlaying;
 
     uint8   noteNumber = NoteNumberFromKeyPattern(m_TouchPadStates);
@@ -485,9 +494,8 @@ PRIVATE  void  NoteOnOffStateTask()
     bool    sendNoteOn = 0;
     uint16  pressure_14b = ((uint16)m_Pressure_Hi << 7) + m_Pressure_Lo;
     uint8   velocity = m_Pressure_Hi;
-    uint8   exprnCC = g_Config.MidiPressureCCnumber[m_SynthMode];
 
-    if (g_Config.FingeringScheme >= KEYING_SCHEME_GERMAN) isValidNote = TRUE;
+    if (g_Config.FingeringScheme >= KEYING_SCHEME_BAROQUE) isValidNote = TRUE;
 
     switch (m_NoteOnOffState)
     {
@@ -559,30 +567,20 @@ PRIVATE  void  NoteOnOffStateTask()
             noteNumPlaying = noteNumber;
         }
 
-        // If the pressure update interval (minimum) has expired, and the pressure
-        // sensor reading has changed since the last update, send expression CC msg.
+        // If the pressure update interval has expired, send expression CC message.
         if (PressureUpdateTimer_ms >= g_Config.MidiPressureInterval[m_SynthMode])
         {
             PressureUpdateTimer_ms = 0;
-            if (pressure_14b != LastPressure)  // pressure reading has changed
-            {
-                if (exprnCC != 0)
-                {
-                    MIDI_SendControlChange(channel, exprnCC, m_Pressure_Hi);
-                    if (g_Config.MidiSend14bitCCdata[m_SynthMode])
-                        MIDI_SendControlChange(channel, (0x20 + exprnCC), m_Pressure_Lo);
-                }
-                LastPressure = pressure_14b;
-            }
+            SendBreathPressureUpdate();
         }
 
-        // If the modulation controller update interval (minimum) has expired,
-        // send modulation CC msg and (if enabled) pitch-bend msg.
+        // If the modulation controller update interval has expired,
+        // send modulation CC msg (if enabled) and pitch-bend msg (if enabled).
         if (controllerUpdateTimer_ms >= CONTROLLER_MSG_INTERVAL)
         {
             controllerUpdateTimer_ms = 0;
             if (g_Config.ModulationEnabled[m_SynthMode]) SendModulationUpdate();
-            if (g_Config.PitchBendEnabled[m_SynthMode]) SendPitchBendUpdate();
+            if (g_Config.MidiPitchBendEnabled[m_SynthMode]) SendPitchBendUpdate();
         }
         break;
     }
@@ -599,32 +597,43 @@ PRIVATE  void  NoteOnOffStateTask()
 
 
 /*
- * Pitch-Bend update routine
+ * Breath Pressure update routine
+ * 
+ * Breath Pressure is sent as a Control Change message, either CC2, CC7 or CC11, 
+ * according to configuation parameter, g_Config.MidiPressureCCnumber.
+ * If MidiPressureCCnumber is zero (0), pressure messages will not be transmitted.
+ * 
+ * A configuration parameter, g_Config.MidiSend14bitCCdata, if non-zero will cause
+ * the data value sent to use 14-bit (2 byte) format, allowing fine control of the effect.
  *
- * Pitch Bend data size is 14 bits (range +/- 8000) for fine control of pitch variation.
- * The Pitch Bend control range is determined by the external MIDI synthesizer.
- *
- * A MIDI Pitch Bend message is sent only if the sensor reading has changed since
- * the last call to this function.
+ * A MIDI Breath Pressure (Control Change) message is sent only if the Pressure data
+ * has changed since the last call to this function.
  */
-PRIVATE  void  SendPitchBendUpdate()
+PRIVATE  void  SendBreathPressureUpdate()
 {
-    static  int16  lastValueSent;  // 14-bit signed number
-    int16   currentValue;
+    static  uint8   LastPressureHi;
+    static  uint8   LastPressureLo;
+    uint8   exprnCC = g_Config.MidiPressureCCnumber[m_SynthMode];
     uint8   channel = g_Config.MidiBasicChannel[m_SynthMode];
-
-    currentValue = GetPitchBendData();
-
-    if (currentValue != lastValueSent)
+    
+    if (exprnCC != 0 && (m_Pressure_Hi != LastPressureHi))  // Pressure MSB has changed
     {
-        MIDI_SendPitchBend(channel, currentValue);
-        lastValueSent = currentValue;
+        MIDI_SendControlChange(channel, exprnCC, m_Pressure_Hi);
+        LastPressureHi = m_Pressure_Hi;
+    }
+    if (exprnCC != 0 && (m_Pressure_Lo != LastPressureLo))  // Pressure LSB has changed
+    {
+        if (g_Config.MidiSend14bitCCdata[m_SynthMode])
+        {
+            MIDI_SendControlChange(channel, (0x20 + exprnCC), m_Pressure_Lo);
+            LastPressureLo = m_Pressure_Lo;
+        }
     }
 }
 
 
 /*
- * Modulation (Force Sensor) update routine
+ * Modulation (CC1) update routine
  *
  * A REMI configuration parameter, g_Config.MidiSend14bitCCdata, if non-zero will cause
  * the data value sent to use 14-bit (2 byte) format, allowing fine control of the effect.
@@ -634,20 +643,48 @@ PRIVATE  void  SendPitchBendUpdate()
  */
 PRIVATE  void  SendModulationUpdate()
 {
-    static  uint16  lastValueSent;
+    static  uint8  lastValueSentLo;
+    static  uint8  lastValueSentHi;
     uint8   channel = g_Config.MidiBasicChannel[m_SynthMode];
-    uint8   dataMSB, dataLSB;
-    uint16  currentValue = GetModulationPadForce();
+
+    if (m_Modulation_Hi != lastValueSentHi)  // Modulation MSB has changed
+    {
+        MIDI_SendControlChange(channel, 0x01, m_Modulation_Hi);
+        lastValueSentHi = m_Modulation_Hi;
+    }
+    if (m_Modulation_Lo != lastValueSentLo)  // Modulation LSB has changed
+    {
+        if (g_Config.MidiSend14bitCCdata[m_SynthMode])
+        {
+            MIDI_SendControlChange(channel, 0x21, m_Modulation_Lo);
+            lastValueSentLo = m_Modulation_Lo;
+        }
+    }
+}
+
+
+/*
+ * Pitch-Bend update routine
+ *
+ * Pitch Bend data size is 14 bits (range 0..0x3FFF) for fine control of pitch change.
+ * Pitch Bend control range/sensitivity is determined by the external MIDI synthesizer.
+ *
+ * The controller mid-value (no pitch change) is 0x2000. (MSB = 0x40 = 64)
+ * 
+ * A MIDI Pitch Bend message is sent only if the sensor reading has changed since
+ * the last call to this function.
+ */
+PRIVATE  void  SendPitchBendUpdate()
+{
+    static  uint16  lastValueSent;  // 14-bit signed number
+    uint16  currentValue;
+    uint8   channel = g_Config.MidiBasicChannel[m_SynthMode];
+
+    currentValue = GetPitchBendData();
 
     if (currentValue != lastValueSent)
     {
-        dataMSB = (currentValue >> 7) & 0x7F;   // send 7 MS bits of 14 bit data
-        MIDI_SendControlChange(channel, 0x01, dataMSB);
-        if (g_Config.MidiSend14bitCCdata[m_SynthMode])
-        {
-            dataLSB = currentValue & 0x7F;   // send 7 LS bits of 14 bit data
-            MIDI_SendControlChange(channel, 0x21, dataLSB);
-        }
+        MIDI_SendPitchBend(channel, currentValue);
         lastValueSent = currentValue;
     }
 }
@@ -860,20 +897,19 @@ PRIVATE  void  SendRemiIdentMessage()
 
 
 /*-------------------------------------------------------------------------------------------------
- *  Functions to support analogue sensor reading
- *-------------------------------------------------------------------------------------------------
+ * Functions supporting sensors for breath pressure, modulation and pitch bend.
+ *------------------------------------------------------------------------------------------------- 
  *
- * Function:  ReadSensorsTask()
+ * Function:  ReadAnalogSensors()
  *
  * Background task executed every 5 milliseconds.
  *
  * This task acquires raw ADC readings from various sensors on the handset, e.g.
  * Breath Pressure Sensor, Modulation Lever/Pad, Pitch-Bend Sensor (where fitted).
- * Also reads the battery voltage (divider) input, for the wireless handset.
  */
-PRIVATE  void   ReadSensorsTask()
+PRIVATE  void   ReadAnalogSensors()
 {
-    ADC_Initialize();
+    ADC_Initialize();  // Disable the CTMU and set up ADC for normal readings
 
     m_PressureSensorReading = ADC_ReadInput(11);
     m_PitchBendSensorReading = ADC_ReadInput(10);
@@ -886,6 +922,8 @@ PRIVATE  void   ReadSensorsTask()
  *
  * Return value:  modLevel: Unsigned integer in the range 0 ~ 16256 (14 bits)
  *                representing the force applied to the Modulation Pad.
+ * 
+ * Output data:   m_Modulation_Lo, m_Modulation_Hi
  *
  * Notes:  g_Config.ModulationMaximum is the maximum value of m_ModulationSensorReading.
  *
@@ -904,63 +942,145 @@ uint16   GetModulationPadForce()
     rawSpan = g_Config.ModulationMaximum - g_Config.ModulationDeadband;
     modLevel = (16256 * modLevel) / rawSpan;
     if (modLevel > 16256) modLevel = 16256;
+    
+    m_Modulation_Lo = (uint8) (((uint16) modLevel) & 0x7F);
+    m_Modulation_Hi = (uint8) (((uint16) modLevel >> 7) & 0x7F);
 
     return  (uint16) modLevel;
-}
-
-
-/* Function:  PitchBendAutoZeroTask()
- *
- * Background task executed every 50 milliseconds.
- *
- * If at least 1 second has elapsed since the last Note-Off event and there has been no
- * subsequent Note-On event, the function performs an "auto-zero" operation on the
- * Pitch-Bend sensor reading.
- *
- * The last raw ADC reading taken is used to set the Pitch-Bend zero level in preparation
- * for the next note to be played. The task will be executed repetitively until the next
- * Note-On event occurs.
- *
- */
-PRIVATE  void   PitchBendAutoZeroTask()
-{
-    if (m_TimeSinceLastNoteOff_ms > 1000)
-    {
-        m_PitchBendZeroLevel = m_PitchBendSensorReading;  // ADC count at "zero" posn
-    }
 }
 
 
 /*
  * Function:  GetPitchBendData()
  *
- * Return value:  Signed integer in the range +/- 8000 representing the displacement
- *                of the Pitch-Bend lever while a note is playing or diagnostic mode
- *                is active; otherwise zero (0).
+ * Returns an Unsigned integer in the range 0..0x3FFF representing the position
+ * of the Pitch-Bend knob/wheel/lever (or gesture) while a note is playing.
+ * The controller mid-value (no pitch change) is 0x2000. (MIDI MSB = 0x40 = 64)
  *
- * Note:  If a Note-On event is pending, i.e. if m_NoteOnOffState != NOTE_OFF_IDLE,
- *        then m_TimeSinceLastNoteOff_ms = 0.  The function cannot return a Pitch Bend
- *        value when there is no note playing (except while diagnostic mode is active)
+ * Note:  The function returns the "zero" (mid) value while there is no note playing,
  *        because the auto-zero routine is active in the note-off/idle state.
- *
  */
-int16  GetPitchBendData()
+uint16  GetPitchBendData()
 {
     int32  linearVal;
     int32  compVal = 0;
 
-    if (m_TimeSinceLastNoteOff_ms == 0)
+    if (m_PitchBendSensorType != 0)  // I2C accelerometer (MMA8451/2))
     {
-        linearVal = 16000 * (int32)(m_PitchBendSensorReading - m_PitchBendZeroLevel);
+        // Scale the tilt angle (+/-1000 units) to get a value in the range 0..+/-8K.
+        linearVal = m_MotionSensorReading << 3;  // rdg x 8
+        compVal = linearVal;   // Linear response
+    }
+    else  // assume analog sensor
+    {
+        // Scale the sensor ADC reading to get a value in the range 0..+/-8K.
+        linearVal = 0x2000 * ((int32) m_PitchBendSensorReading - m_PitchBendZeroLevel);
         linearVal = linearVal / g_Config.PitchBendSpan;
-
 //      compVal = (linearVal * linearVal) / 16000;  // Square-law response
-//      if (linearVal < 0) compVal = 0 - compVal;
-
         compVal = linearVal;   // Linear response
     }
 
-    return  (int16) compVal;
+    return  (uint16) (compVal + 0x2000);  // Add 8K offset to obtain unipolar value
+}
+
+
+/* Function:  PitchBendAutoZero()
+ *
+ * Background task executed every 50 milliseconds.
+ *
+ * If at least 1 second has elapsed since the last Note-Off event and there has been no
+ * subsequent Note-On event, the function performs an "auto-zero" operation on the
+ * Pitch-Bend sensor reading (controller position value).
+ *
+ * The last raw ADC reading taken is used to set the Pitch-Bend zero level in preparation
+ * for the next note to be played. The task will be executed repetitively until the next
+ * Note-On event occurs.
+ *
+ */
+PRIVATE  void  PitchBendAutoZero()
+{
+    if (m_TimeSinceLastNoteOff_ms > 1000)
+    {
+        // Case 1: Analog sensor (no drama if not fitted)
+        m_PitchBendZeroLevel = m_PitchBendSensorReading;  // ADC count at "zero" posn
+        
+        // Case 2: Digital sensor (accelerometer)
+        MotionSensorUpdateTask(1);  // Reset position data
+    }
+}
+
+
+/*
+ * Function:  MotionSensorUpdateTask()
+ *
+ * Periodic background task executed at 5ms intervals.
+ * 
+ * This function reads Z-axis acceleration (g-force) data from the motion sensor IC,
+ * MMA8451/8452. The g-force value represents up/down position (tilt) of the handset.
+ * 
+ * The position value must be reset (zeroed) regularly.
+ * This operation is triggered by another task:  PitchBendAutoZero().
+ * 
+ * Entry arg:    doZero = TRUE to reset the "zero" (centre) position value.
+ * 
+ * Output data:  m_MotionSensorReading = handset position (tilt) value, signed
+ *               displacement from "zero" position;  range: -1000 to +1000
+ *               corresponding to approx. +/-30 degree tilt from "zero" position.
+ *               A "dead-band" is imposed around the "zero" position.
+ */
+void  MotionSensorUpdateTask(bool doZero)
+{
+    static int32  zeroPosition;  // Accel value at "zero" pos'n, fixed-pt [24:8] bits
+    static int32  accelSmooth;   // Smoothed accel value, fixed-pt [24:8] bits
+    int16  rawData;              // signed Z-axis accel reading (4096 units = 1g)
+    int32  calcData, outData;    // output values
+    
+    rawData = MMA8451_RegisterRead(0x05);  // read OUT_Z_MSB
+    rawData = (int16)(((uint16)rawData << 8) & 0xFF00);
+    rawData += MMA8451_RegisterRead(0x06);  // read OUT_Z_LSB;
+    rawData = (rawData >> 2);  // get 14 MS bits
+    
+    // Apply 1st-order IIR smoothing filter to accel value (coeff. K = 0.25)
+    accelSmooth -= accelSmooth >> 2;  // subtract K * accelSmooth
+    accelSmooth += ((int32)rawData << 6);  // add K * (rawData << 8)
+
+    if (doZero) 
+    {
+        zeroPosition = accelSmooth;  // make current position "zero"
+        m_MotionSensorReading = 0;
+    }
+    else  
+    {
+        calcData = (zeroPosition - accelSmooth) >> 8;  // integer part (+/-2000)
+        if (calcData > 1100)  calcData = 1100;   // cap full-scale at +/-1100 units
+        if (calcData < -1100)  calcData = -1100;
+        // Impose dead-band = 100 units either side of centre "zero" pos'n
+        // and square-law transfer curve on the output value...
+        if (calcData >= 100)  // above centre-zero position
+        {
+            outData = calcData - 100;  // 0..1000
+            outData = (outData * outData) / 1000;
+        }
+        else if (calcData <= -100)  // below centre-zero position
+        {
+            outData = calcData + 100;  // -1000..0
+            outData = 0 - (outData * outData) / 1000;
+        }
+        else  outData = 0;  // inside dead-band
+        m_MotionSensorReading = outData;
+    }
+}
+
+
+/*
+ * Function returns m_MotionSensorReading (for external access).
+ * 
+ * Return val:  m_MotionSensorReading = handset position (tilt) value, signed
+ *              displacement from "zero" position;  range: -1000 to +1000.
+ */
+int32  GetMotionSensorData(void)
+{
+    return  m_MotionSensorReading;
 }
 
 
@@ -1015,25 +1135,25 @@ void  DefaultConfigData(void)
     g_Config.MidiBasicChannel[0] = 1;
     g_Config.MidiSysExclMsgEnabled[0] = 0;
     g_Config.MidiProgChangeEnabled[0] = 0;
+    g_Config.MidiPitchBendEnabled[0] = 0;
     g_Config.MidiPressureCCnumber[0] = 2;
     g_Config.MidiPressureInterval[0] = 5;
     g_Config.MidiSend14bitCCdata[0] = 0;
     g_Config.LegatoModeEnabled[0] = 1;
     g_Config.VelocitySenseEnabled[0] = 0;
     g_Config.ModulationEnabled[0] = 1;
-    g_Config.PitchBendEnabled[0] = 0;
 
     // Default values for Synth Mode [1] -- Bauer EWI synth
     g_Config.MidiBasicChannel[1] = 1;
     g_Config.MidiSysExclMsgEnabled[1] = 1;
     g_Config.MidiProgChangeEnabled[1] = 0;
+    g_Config.MidiPitchBendEnabled[1] = 0;
     g_Config.MidiPressureCCnumber[1] = 2;
     g_Config.MidiPressureInterval[1] = 5;
     g_Config.MidiSend14bitCCdata[1] = 0;
     g_Config.LegatoModeEnabled[1] = 1;
     g_Config.VelocitySenseEnabled[1] = 0;
     g_Config.ModulationEnabled[1] = 1;
-    g_Config.PitchBendEnabled[1] = 0;
 
     g_Config.FingeringScheme = KEYING_SCHEME_REMI_STD;
     g_Config.PitchOffset = 0;
@@ -1041,7 +1161,7 @@ void  DefaultConfigData(void)
     g_Config.PressureSensorSpan = 750;
     g_Config.PitchBendSpan = 1000;
     g_Config.ModulationMaximum = 750;
-    g_Config.ModulationDeadband = 350;
+    g_Config.ModulationDeadband = 550;
 
     for (i = 0 ; i < 8 ; i++)
     {
