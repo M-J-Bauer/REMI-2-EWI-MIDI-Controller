@@ -9,6 +9,8 @@ A low-cost ($10) MIDI-USB adapter allows the REMI to be used with a "virtual syn
 Latest firmware supports a choice of recorder-like fingering schemes including emulation of Baroque (German and English) fingering. 
 The "standard" REMI fingering is designed to be easy to learn, for beginners with no previous experience of wind instruments.
 
+*** Firmware update (v1.4.45++) supports PITCH BEND using motion sensor MMA8451/2 (3-axis accelerometer). ***
+
 A full description of the project can be found in the doc folder. See also: http://www.mjbauer.biz/REMI_Intro.htm
 
 _You are welcome to post comments or ask questions in the Discussions section._
