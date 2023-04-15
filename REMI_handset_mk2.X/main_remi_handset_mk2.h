@@ -21,7 +21,7 @@
 //
 #define BUILD_VER_MAJOR   1
 #define BUILD_VER_MINOR   4
-#define BUILD_VER_DEBUG   45
+#define BUILD_VER_DEBUG   50
 //
 // =======================================================================================
 
@@ -33,6 +33,7 @@
 
 #define NOTE_ON_VELOCITY_DELAY   15    // Delay from note trigger to get velocity (ms))
 #define CONTROLLER_MSG_INTERVAL  30    // Modulation & Pitch-bend message interval (ms)
+#define PITCH_BEND_DEAD_BAND     50    // Full-scale = +/-1000 units
 
 // MIDI System Exclusive message types unique to REMI...
 #define REMI_PRESET_MSG   0x07     // 'REMI PRESET' msg type (set Preset #)
@@ -75,12 +76,12 @@ typedef struct Config_Params_Structure
     uint8   MidiSysExclMsgEnabled[2];   // MIDI SystemExclusive Messages Enabled
     uint8   MidiProgChangeEnabled[2];   // MIDI Program Change Messages Enabled
     uint8   MidiPitchBendEnabled[2];    // MIDI Pitch-Bend Messages enabled
+    uint8   MidiModulationEnabled[2];   // MIDI Modulation Messages enabled
     uint8   MidiPressureCCnumber[2];    // MIDI Ctrl Change # for breath/pressure messages
     uint8   MidiPressureInterval[2];    // MIDI pressure TX update interval (5..50 ms)
     uint8   MidiSend14bitCCdata[2];     // MIDI Control Change messages send 14 bit data
     uint8   LegatoModeEnabled[2];       // Legato Mode Enabled
     uint8   VelocitySenseEnabled[2];    // Velocity sensing enabled
-    uint8   ModulationEnabled[2];       // Modulation Pad/Lever enabled
     
     // This group of parameters is for handset configuration (mostly long-term)...
     uint8   FingeringScheme;          // Fingering Scheme (LH4/RH5 flat or sharp)
@@ -89,7 +90,6 @@ typedef struct Config_Params_Structure
     uint16  PressureSensorSpan;       // Pressure sensor span, ADC count (250..750)
     uint16  ModulationMaximum;        // Modulation sensor maximum, ADC count (250..750)
     uint16  ModulationDeadband;       // Modulation sensor dead-band, ADC count (0..500)
-    uint16  PitchBendSpan;            // Pitch-Bend sensor span, ADC count (250..750)
 
     uint8   PresetMidiProgram[8];     // MIDI Program/voice numbers for 8 presets
     uint16  CheckSum;                 // Data integrity check
@@ -107,12 +107,13 @@ void    MotionSensorUpdateTask(bool integReset);
 uint8   GetNoteOnOffState();
 uint8   GetLastNotePlayed();
 uint16  GetPressureRawReading();
-uint16  GetMidiPressureLevel();
 uint16  GetModulationRawReading();
-uint16  GetPitchBendRawReading();
-uint16  GetModulationPadForce();
-uint16  GetPitchBendData();
+uint16  GetMidiPressureLevel();
+void    CalcModulationPadForce();
+uint16  GetMidiPitchBendData();
 int32   GetMotionSensorData();
+uint8   GetMidiPressureHiByte();
+uint8   GetMidiModulationHiByte();
 
 bool    isPresetButtonPressed();
 void    InstrumentPresetSelect(uint8);

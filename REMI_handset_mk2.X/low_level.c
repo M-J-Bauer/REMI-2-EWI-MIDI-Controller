@@ -124,7 +124,7 @@ void  TMR1_InterruptHandler(void)
     static uint8 count_to_50 = 0;
     
     PIR1bits.TMR1IF = 0;   // Clear TMR1 IRQ flag
- 
+    
     // Re-load TMR1 counter for req'd period
     TMR1H = (v_Timer1ReloadVal >> 8);
     TMR1L = (uint8_t) v_Timer1ReloadVal;
@@ -139,7 +139,7 @@ void  TMR1_InterruptHandler(void)
 }
 
 
-/**
+/*```````````````````````````````````````````````````````````````````````````````````````
  * This function returns the value of a free-running 32-bit counter variable,
  * incremented every millisecond by TMR1_InterruptHandler(), above.
  * It's purpose is to implement "non-blocking" time delays and event timers.
@@ -150,7 +150,7 @@ void  TMR1_InterruptHandler(void)
  *                  :
  *    eventStartTime = millisecondTimer();  // capture the starting time
  *                  :
- *    if ((millisecondTimer() >= (eventStartTime + EVENT_DURATION))  // time's up!
+ *    if ((millisecondTimer() - eventStartTime) < TIME_DURATION)  // time's up! >
  *    {
  *        // Do what needs to be done TIME_DURATION ms after eventStartTime
  *    }
@@ -192,7 +192,7 @@ void  Delay_x10us(uint8 count_10us)
     while (count_10us-- != 0)
     {
         DELAY_1us(); DELAY_1us(); DELAY_1us(); DELAY_1us();
-        DELAY_1us(); DELAY_1us(); DELAY_1us(); DELAY_1us();
+        DELAY_1us(); DELAY_1us(); DELAY_1us();
     }
 }
 

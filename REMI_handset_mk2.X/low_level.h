@@ -35,7 +35,8 @@
 #define MODULATION_SENSOR_ADC_CHAN   13  // RB5/AN13
 
 // Delay for one microsecond @ F_OSC = 16 MHz (Note: T_CYCLE = T_OSC * 4):
-#define DELAY_1us()   NOP(); NOP(); NOP(); NOP();
+#define DELAY_1us()   { NOP();  NOP();  NOP();  NOP(); }
+
 
 #define ADC08_SET_AS_INPUT()  TRISBbits.TRISB2 = 1;  \
                               ANSELBbits.ANSB2 = 1;

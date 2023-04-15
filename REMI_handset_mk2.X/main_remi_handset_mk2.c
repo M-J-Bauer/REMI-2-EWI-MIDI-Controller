@@ -64,14 +64,10 @@ static  uint16  m_PressureThresholdNoteOff;
 static  uint8   m_Pressure_Hi;
 static  uint8   m_Pressure_Lo;
 static  uint16  m_ModulationSensorReading;
-static  uint16  m_ModulationZeroLevel;
 static  uint8   m_Modulation_Hi;
 static  uint8   m_Modulation_Lo;
-
-static  uint8   m_PitchBendSensorType;       // 0: Analog, 1: MMA8451, 2: MMA8452)
-static  uint16  m_PitchBendSensorReading;    // for Analog sensor
-static  uint16  m_PitchBendZeroLevel;        // for Analog sensor
-static  int32   m_MotionSensorReading;       // from MMA8451/8452 (signed, 0..+/-2K)
+static  uint8   m_PitchBendSensorID;     // 0: None, 1: MMA8451, 2: MMA8452
+static  int32   m_MotionSensorReading;   // from MMA8451/8452 (signed, 0..+/-2K)
 
 
 //=================================================================================================
@@ -85,14 +81,15 @@ PRIVATE  void  APP_Initialize()
     g_AppTitleCLI = "Bauer {REMI} Handset mk2 -- Service Port CLI \n";
     g_SelfTestErrors = 0;
 
-    LED1_INIT();
-    LED2_INIT();
+    LED1_INIT();  // off
+    LED2_INIT();  // off
+    
     EUSART1_init(38400);    // for service port (CLI)
     EUSART2_init(31250);    // for MIDI TX port
     TMR1_Initialize();      // Set up RTI Timer
     TouchSenseInit();
     
-    m_PitchBendSensorType = MMA8451_Setup(2);  // = 0, 1 or 2
+    m_PitchBendSensorID = MMA8451_Setup(2);  // = 0, 1 or 2
 
     GlobalInterruptEnable();
     PeripheralInterruptEnable();
@@ -110,10 +107,10 @@ void  main(void)
     // Send a few NUL chars to the USB-serial bridge to sync the baud-rate
     for (count = 0; count < 10; count++)  { EUSART1_WriteByte(0); }
 
-    EUSART1_WriteString("\r\n* MCU reset *\n");
+    putstr("\r\n* MCU reset *\n");
 
     if (sizeof(g_Config) > 64) g_SelfTestErrors |= (1 << TEST_CONFIG_OVERSIZE);
-
+    
     if (FetchConfigData() == FALSE)  // Read Config data from Flash
     {
         g_SelfTestErrors |= (1 << TEST_CONFIG_INTEGRITY);
@@ -124,16 +121,18 @@ void  main(void)
 
     // Measure the pressure sensor signal level -- loop for 200ms
     startupTime = millisecTimer();
-    while (millisecTimer() < (startupTime + 200))
+    
+    while ((millisecTimer() - startupTime) < 200)
     {
         if (v_RTI_flag_5ms_task)
         {
             v_RTI_flag_5ms_task = 0;
-            LED1_ON();
             ReadAnalogSensors();
         }
     }
-
+    
+    LED1_ON();  // If LED is not lit, there's a system timer problem!
+    
     // Determine the quiescent pressure level and note on/off thresholds
     m_PressureQuiescent = m_PressureSensorReading;
     m_PressureThresholdNoteOn = m_PressureQuiescent + (g_Config.PressureSensorSpan * 5) / 100;
@@ -144,7 +143,7 @@ void  main(void)
 
     m_SynthMode = SWITCH2_INPUT() ? 1 : 0;  // State at power-on/reset
 
-    EUSART1_WriteString(g_AppTitleCLI);   // Output CLI startup message
+    putstr(g_AppTitleCLI);   // Output CLI startup message
     Cmnd_ver(1, NULL);
 
     while (1)   // loop forever
@@ -167,7 +166,6 @@ void  main(void)
 void  BackgroundTaskExec()
 {
     static uint8  count_50ms;
-    static bool   startMsgSent;
 
     if (v_RTI_flag_1ms_task)     // Do 1ms periodic task
     {
@@ -180,18 +178,19 @@ void  BackgroundTaskExec()
         v_RTI_flag_5ms_task = 0;
         ReadAnalogSensors();
         m_TouchPadStates = TouchPadStates() & 0x3FF;
+
         CalcMidiPressureLevel();
+        CalcModulationPadForce();
         
         NoteOnOffStateTask();
         PresetButtonMonitor();
-        if (m_PitchBendSensorType != 0) MotionSensorUpdateTask(0);
+        if (m_PitchBendSensorID != 0) MotionSensorUpdateTask(0);
     }
 
     if (v_RTI_flag_50ms_task)    // Do 50ms periodic tasks
     {
         v_RTI_flag_50ms_task = 0;
-        LED1_ON();
-        if (!g_DiagModeActive) PitchBendAutoZero();
+//      if (!g_DiagModeActive) PitchBendAutoZero();
 
         if (++count_50ms == 4)   // Do 200ms periodic tasks
         {
@@ -243,50 +242,6 @@ void  DisplayNotePlayed(uint8 noteNum)
 bool  isPresetButtonPressed()
 {
     return  (BUTTON1_INPUT() == 0);
-}
-
-
-/**
- * Function:     Get raw ADC count value of breath pressure sensor.
- *
- * Return val:   (uint16) ADC count value, 10 bits (0..1023)
- */
-uint16  GetPressureRawReading()
-{
-    return  m_PressureSensorReading;
-}
-
-
-/**
- * Function:     Get pressure value sent in MIDI expression message.
- *
- * Return val:   (uint16) MIDI data value, 14 bits, range 0..16256
- */
-uint16  GetMidiPressureLevel()
-{
-    return  ((uint16)m_Pressure_Hi << 7) + m_Pressure_Lo;
-}
-
-
-/**
- * Function:     Get raw ADC count value of Modulation sensor.
- *
- * Return val:   (uint16) ADC count value, 10 bits (0..1023)
- */
-uint16  GetModulationRawReading()
-{
-    return  m_ModulationSensorReading;
-}
-
-
-/**
- * Function:     Get raw ADC count value of Pitch Bend sensor.
- *
- * Return val:   (uint16) ADC count value, 10 bits (0..1023)
- */
-uint16  GetPitchBendRawReading()
-{
-    return  m_PitchBendSensorReading;
 }
 
 
@@ -431,42 +386,6 @@ PRIVATE  uint8  NoteNumberFromKeyPattern(uint16 fingerPattern)
 }
 
 
-/*****
- * Function:  Determine 14-bit pressure level from the pressure sensor raw ADC reading.
- *            May be used also to find MIDI velocity value from pressure.
- *            Called at regular periodic intervals, Ts = 5ms.
- *
- * Outputs:   (uint8) m_Pressure_Hi = MIDI pressure High byte, or Velocity (0..127)
- *            (uint8) m_Pressure_Lo = MIDI pressure Low byte (0..127)
- *
- * Note 1:    The function assumes a linear relationship between raw pressure reading
- *            and MIDI pressure (or velocity) value. The external MIDI sound module
- *            should apply an exponential transfer function between MIDI pressure and
- *            audio output amplitude (to compensate for perceived loudness).
- *
- * Note 2:    Raw ADC readings are smoothed using a first-order IIR filter, with
- *            time-constant Tc determined by the sample interval Ts and a constant K,
- *            by the formula:  Tc = Ts x (0.8 / K)  where K = 1 / 2^N  (N = 1,2,3...).
- *            Example:  Let Ts = 5ms, K = 0.25, then Tc = 5 x 3.2 = 16ms
- */
-PRIVATE  void  CalcMidiPressureLevel()
-{
-    static  int32  pressure;  // smoothed level
-    int32   level;
-    uint16  rawSpan = g_Config.PressureSensorSpan;  // unit = ADC counts
-
-    // Calculate pressure as a 14-bit quantity, range 0 to 16256 (127 x 128)
-    level = (16256 * (int32)(m_PressureSensorReading - m_PressureQuiescent)) / rawSpan;
-    if (level < 0) level = 0;
-    if (level > 16256)  level = 16256;
-    // Apply smoothing filter
-    pressure = pressure - (pressure >> 2) + (level >> 2);  // K = 0.25 (N = 2)
-
-    m_Pressure_Hi = (uint8) (pressure >> 7) & 0x7F;  // High-order 7 bits
-    m_Pressure_Lo = (uint8) pressure & 0x7F;   // Low-order 7 bits
-}
-
-
 /*^
  * Function:  NoteOnOffStateTask()
  *
@@ -579,7 +498,7 @@ PRIVATE  void  NoteOnOffStateTask()
         if (controllerUpdateTimer_ms >= CONTROLLER_MSG_INTERVAL)
         {
             controllerUpdateTimer_ms = 0;
-            if (g_Config.ModulationEnabled[m_SynthMode]) SendModulationUpdate();
+            if (g_Config.MidiModulationEnabled[m_SynthMode]) SendModulationUpdate();
             if (g_Config.MidiPitchBendEnabled[m_SynthMode]) SendPitchBendUpdate();
         }
         break;
@@ -680,7 +599,7 @@ PRIVATE  void  SendPitchBendUpdate()
     uint16  currentValue;
     uint8   channel = g_Config.MidiBasicChannel[m_SynthMode];
 
-    currentValue = GetPitchBendData();
+    currentValue = GetMidiPitchBendData();
 
     if (currentValue != lastValueSent)
     {
@@ -912,46 +831,116 @@ PRIVATE  void   ReadAnalogSensors()
     ADC_Initialize();  // Disable the CTMU and set up ADC for normal readings
 
     m_PressureSensorReading = ADC_ReadInput(11);
-    m_PitchBendSensorReading = ADC_ReadInput(10);
     m_ModulationSensorReading = ADC_ReadInput(13);
 }
 
 
-/*
- * Function:  GetModulationPadForce()
+/**
+ * Function:     Get raw ADC count value of breath pressure sensor.
  *
- * Return value:  modLevel: Unsigned integer in the range 0 ~ 16256 (14 bits)
- *                representing the force applied to the Modulation Pad.
- * 
- * Output data:   m_Modulation_Lo, m_Modulation_Hi
- *
- * Notes:  g_Config.ModulationMaximum is the maximum value of m_ModulationSensorReading.
- *
- *         A "dead-band" is deliberately introduced at zero so that a minimum force needs
- *         to be applied to the sensor before a non-zero reading is obtained.
+ * Return val:   (uint16) ADC count value, 10 bits (0..1023)
  */
-uint16   GetModulationPadForce()
+uint16  GetPressureRawReading()
 {
-    int32   modLevel;  // uncompensated for non-linearity
-    int32   rawSpan;
+    return  m_PressureSensorReading;
+}
 
-    modLevel = m_ModulationSensorReading - g_Config.ModulationDeadband;
-    if (modLevel < 0) modLevel = 0;
 
-    // Scale modLevel such that it spans the full 14 bit range (0 ~ 16256)...
-    rawSpan = g_Config.ModulationMaximum - g_Config.ModulationDeadband;
-    modLevel = (16256 * modLevel) / rawSpan;
-    if (modLevel > 16256) modLevel = 16256;
-    
-    m_Modulation_Lo = (uint8) (((uint16) modLevel) & 0x7F);
-    m_Modulation_Hi = (uint8) (((uint16) modLevel >> 7) & 0x7F);
+/**
+ * Function:     Get raw ADC count value of Modulation sensor.
+ *
+ * Return val:   (uint16) ADC count value, 10 bits (0..1023)
+ */
+uint16  GetModulationRawReading()
+{
+    return  m_ModulationSensorReading;
+}
 
-    return  (uint16) modLevel;
+
+/*****
+ * Function:  Determine 14-bit pressure level from the pressure sensor raw ADC reading.
+ *            May be used also to find MIDI velocity value from pressure.
+ *            Called at regular periodic intervals, Ts = 5ms.
+ *
+ * Outputs:   (uint8) m_Pressure_Hi = MIDI pressure High byte, or Velocity (0..127)
+ *            (uint8) m_Pressure_Lo = MIDI pressure Low byte (0..127)
+ *
+ * Note 1:    The function assumes a linear relationship between raw pressure reading
+ *            and MIDI pressure (or velocity) value. The external MIDI sound module
+ *            should apply an exponential transfer function between MIDI pressure and
+ *            audio output amplitude (to compensate for perceived loudness).
+ *
+ * Note 2:    Raw ADC readings are smoothed using a first-order IIR filter, with
+ *            time-constant Tc determined by the sample interval Ts and a constant K,
+ *            by the formula:  Tc = Ts x (0.8 / K)  where K = 1 / 2^N  (N = 1,2,3...).
+ *            Example:  Let Ts = 5ms, K = 0.25, then Tc = 5 x 3.2 = 16ms
+ */
+PRIVATE  void  CalcMidiPressureLevel()
+{
+    static  int32  pressure;  // smoothed level
+    int32   level;
+    uint16  rawSpan = g_Config.PressureSensorSpan;  // unit = ADC counts
+
+    // Calculate pressure as a 14-bit quantity, range 0 to 16256 (127 x 128)
+    level = (16256 * ((int32)m_PressureSensorReading - m_PressureQuiescent)) / rawSpan;
+    if (level < 0) level = 0;
+    if (level > 16256)  level = 16256;
+    // Apply smoothing filter
+    pressure = pressure - (pressure >> 2) + (level >> 2);  // K = 0.25 (N = 2)
+
+    m_Pressure_Hi = (uint8) (pressure >> 7) & 0x7F;  // High-order 7 bits
+    m_Pressure_Lo = (uint8) pressure & 0x7F;   // Low-order 7 bits
+}
+
+
+/**
+ * Function:     Get pressure value sent in MIDI expression message.
+ *
+ * Return val:   (uint16) MIDI data value, 14 bits, range 0..16256
+ */
+uint16  GetMidiPressureLevel()
+{
+    return  ((uint16)m_Pressure_Hi << 7) + m_Pressure_Lo;
 }
 
 
 /*
- * Function:  GetPitchBendData()
+ * Function:  CalcModulationPadForce()
+ * 
+ * Calculates a value for the Modulation Pad/Lever force, modLevel, and outputs the
+ * data in a form to send in a MIDI CC1 message (14-bit unsigned number).
+ *
+ * Output data:  m_Modulation_Lo (LS 7 bits), m_Modulation_Hi (MS 7 bits)
+ *
+ * Notes: 1. A "dead-band" is introduced at zero so that a minimum force needs
+ *           to be applied to the sensor before a non-zero reading is obtained.
+ * 
+ *        2. A square-law transform may be applied to compensate for sensor non-linearity.
+ *           *** todo:  Make this a user-settable config option ***
+ */
+void  CalcModulationPadForce()
+{
+    int32   modLevel;  // uncompensated for non-linearity
+    int32   rawSpan;
+
+    modLevel = (int32) m_ModulationSensorReading - g_Config.ModulationDeadband;
+    if (modLevel < 0) modLevel = 0;
+
+    // Scale modLevel such that it spans the full 14 bit range (0 ~ 16256)...
+    rawSpan = (int32) g_Config.ModulationMaximum - g_Config.ModulationDeadband;
+    modLevel = (16256 * modLevel) / rawSpan;
+    if (modLevel > 16256) modLevel = 16256;
+    
+    // Apply square-law transform to compensate for sensor non-linearity...
+    modLevel = (modLevel * modLevel) / 16256;  // 
+    
+    m_Modulation_Lo = (uint8) (modLevel & 0x7F);
+    m_Modulation_Hi = (uint8) ((modLevel >> 7) & 0x7F);
+}
+
+
+/*
+ * Function:  GetMidiPitchBendData()
  *
  * Returns an Unsigned integer in the range 0..0x3FFF representing the position
  * of the Pitch-Bend knob/wheel/lever (or gesture) while a note is playing.
@@ -960,53 +949,37 @@ uint16   GetModulationPadForce()
  * Note:  The function returns the "zero" (mid) value while there is no note playing,
  *        because the auto-zero routine is active in the note-off/idle state.
  */
-uint16  GetPitchBendData()
+uint16  GetMidiPitchBendData()
 {
-    int32  linearVal;
-    int32  compVal = 0;
+    int32  pbendVal;
 
-    if (m_PitchBendSensorType != 0)  // I2C accelerometer (MMA8451/2))
-    {
-        // Scale the tilt angle (+/-1000 units) to get a value in the range 0..+/-8K.
-        linearVal = m_MotionSensorReading << 3;  // rdg x 8
-        compVal = linearVal;   // Linear response
-    }
-    else  // assume analog sensor
-    {
-        // Scale the sensor ADC reading to get a value in the range 0..+/-8K.
-        linearVal = 0x2000 * ((int32) m_PitchBendSensorReading - m_PitchBendZeroLevel);
-        linearVal = linearVal / g_Config.PitchBendSpan;
-//      compVal = (linearVal * linearVal) / 16000;  // Square-law response
-        compVal = linearVal;   // Linear response
-    }
+    // Scale the tilt position (+/-2000 units) to get a value in the range 0..+/-8K.
+    pbendVal = m_MotionSensorReading << 2;  // rdg x 4
 
-    return  (uint16) (compVal + 0x2000);  // Add 8K offset to obtain unipolar value
+    return  (uint16) (pbendVal + 0x2000);  // Add 8K offset to obtain unipolar value
 }
 
 
 /* Function:  PitchBendAutoZero()
  *
  * Background task executed every 50 milliseconds.
- *
+ * 
+ * New scheme...
+ * If the Modulation Pad/lever data value is below minimum operating threshold, then
+ * the pitch-bend auto-zero function is executed.  Pitch bend operation is enabled
+ * while the Modulation Pad/lever value is above the upper operating threshold.
+ * 
+ * Old scheme...
  * If at least 1 second has elapsed since the last Note-Off event and there has been no
  * subsequent Note-On event, the function performs an "auto-zero" operation on the
  * Pitch-Bend sensor reading (controller position value).
- *
- * The last raw ADC reading taken is used to set the Pitch-Bend zero level in preparation
- * for the next note to be played. The task will be executed repetitively until the next
- * Note-On event occurs.
- *
  */
 PRIVATE  void  PitchBendAutoZero()
 {
-    if (m_TimeSinceLastNoteOff_ms > 1000)
-    {
-        // Case 1: Analog sensor (no drama if not fitted)
-        m_PitchBendZeroLevel = m_PitchBendSensorReading;  // ADC count at "zero" posn
-        
-        // Case 2: Digital sensor (accelerometer)
-        MotionSensorUpdateTask(1);  // Reset position data
-    }
+/*    
+    if (m_TimeSinceLastNoteOff_ms > 1000) MotionSensorUpdateTask(1); 
+*/
+    if (m_Modulation_Hi < 80) MotionSensorUpdateTask(1);
 }
 
 
@@ -1019,14 +992,14 @@ PRIVATE  void  PitchBendAutoZero()
  * MMA8451/8452. The g-force value represents up/down position (tilt) of the handset.
  * 
  * The position value must be reset (zeroed) regularly.
- * This operation is triggered by another task:  PitchBendAutoZero().
+ * This operation may be triggered by another task:  PitchBendAutoZero().
  * 
  * Entry arg:    doZero = TRUE to reset the "zero" (centre) position value.
  * 
  * Output data:  m_MotionSensorReading = handset position (tilt) value, signed
- *               displacement from "zero" position;  range: -1000 to +1000
+ *               displacement from "zero" position;  range: -2000 to +2000
  *               corresponding to approx. +/-30 degree tilt from "zero" position.
- *               A "dead-band" is imposed around the "zero" position.
+ *               A "dead-band" may be imposed around the "zero" position.
  */
 void  MotionSensorUpdateTask(bool doZero)
 {
@@ -1034,6 +1007,7 @@ void  MotionSensorUpdateTask(bool doZero)
     static int32  accelSmooth;   // Smoothed accel value, fixed-pt [24:8] bits
     int16  rawData;              // signed Z-axis accel reading (4096 units = 1g)
     int32  calcData, outData;    // output values
+    int32  deadBand = PITCH_BEND_DEAD_BAND;
     
     rawData = MMA8451_RegisterRead(0x05);  // read OUT_Z_MSB
     rawData = (int16)(((uint16)rawData << 8) & 0xFF00);
@@ -1044,27 +1018,26 @@ void  MotionSensorUpdateTask(bool doZero)
     accelSmooth -= accelSmooth >> 2;  // subtract K * accelSmooth
     accelSmooth += ((int32)rawData << 6);  // add K * (rawData << 8)
 
-    if (doZero) 
+    if (m_Modulation_Hi < 80 || doZero)  // If Pitch-bend inactive...
     {
-        zeroPosition = accelSmooth;  // make current position "zero"
+        zeroPosition = accelSmooth;  // ... make current position "zero"
         m_MotionSensorReading = 0;
     }
-    else  
+    else  // Pitch-bend active
     {
         calcData = (zeroPosition - accelSmooth) >> 8;  // integer part (+/-2000)
-        if (calcData > 1100)  calcData = 1100;   // cap full-scale at +/-1100 units
-        if (calcData < -1100)  calcData = -1100;
-        // Impose dead-band = 100 units either side of centre "zero" pos'n
-        // and square-law transfer curve on the output value...
-        if (calcData >= 100)  // above centre-zero position
+        if (calcData > 1500)  calcData = 1500;   // cap full-scale at +/-1500 units
+        if (calcData < -1500)  calcData = -1500;
+
+        if (calcData >= deadBand)  // above centre-zero position
         {
-            outData = calcData - 100;  // 0..1000
-            outData = (outData * outData) / 1000;
+            outData = ((calcData - deadBand) * 2000) / (1500 - deadBand);  // 0..+2000
+//          outData = (outData * outData) / 2000;  // apply square-law ??? (TBD))
         }
-        else if (calcData <= -100)  // below centre-zero position
+        else if (calcData <= -deadBand)  // below centre-zero position
         {
-            outData = calcData + 100;  // -1000..0
-            outData = 0 - (outData * outData) / 1000;
+            outData = ((calcData + deadBand) * 2000) / (1500 - deadBand);  // -2000..0
+//          outData = 0 - (outData * outData) / 2000;  // apply square-law ??? (TBD))
         }
         else  outData = 0;  // inside dead-band
         m_MotionSensorReading = outData;
@@ -1073,7 +1046,7 @@ void  MotionSensorUpdateTask(bool doZero)
 
 
 /*
- * Function returns m_MotionSensorReading (for external access).
+ * Function returns m_MotionSensorReading (for external diagnostic).
  * 
  * Return val:  m_MotionSensorReading = handset position (tilt) value, signed
  *              displacement from "zero" position;  range: -1000 to +1000.
@@ -1081,6 +1054,28 @@ void  MotionSensorUpdateTask(bool doZero)
 int32  GetMotionSensorData(void)
 {
     return  m_MotionSensorReading;
+}
+
+
+/**
+ * Function:     Return MIDI pressure level, High-order byte (0..127)
+ *
+ * Return val:   (uint8) m_Pressure_Hi
+ */
+uint8  GetMidiPressureHiByte()
+{
+    return  m_Pressure_Hi;
+}
+
+
+/**
+ * Function:     Return MIDI Modulation level, High-order byte (0..127).
+ *
+ * Return val:   (uint8) m_Modulation_Hi
+ */
+uint8  GetMidiModulationHiByte()
+{
+    return  m_Modulation_Hi;
 }
 
 
@@ -1116,8 +1111,7 @@ bool  FetchConfigData()
  * These are "factory" defaults which are applied only in the event of erasure or
  * corruption of flash memory data, including firmware update.
  *
- * ToDo: This function is to be revised such that there are two sets of config. parameters,
- *       one for each state of the MODE switch.  Both sets are to be defaulted as required.
+ * Note: There are 2 sets of config. parameters, one for each posn of the MODE switch. 
  */
 void  DefaultConfigData(void)
 {
@@ -1126,48 +1120,44 @@ void  DefaultConfigData(void)
     //   Preset #: [  8,  1,  2,  3,  4,  5,  6,  7 ]
 
     uint8  i;
-    uint8 *pdat = (uint8 *) &g_Config;
-
-    // Erase (write 0xFF) data in 64-byte block of RAM beginning at &g_Config.
-    for (i = 0;  i < 64;  i++)  { *pdat++ = 0xFF; }
 
     // Default values for Synth Mode [0] -- Generic MIDI synth
     g_Config.MidiBasicChannel[0] = 1;
     g_Config.MidiSysExclMsgEnabled[0] = 0;
     g_Config.MidiProgChangeEnabled[0] = 0;
     g_Config.MidiPitchBendEnabled[0] = 0;
+    g_Config.MidiModulationEnabled[0] = 0;
     g_Config.MidiPressureCCnumber[0] = 2;
     g_Config.MidiPressureInterval[0] = 5;
     g_Config.MidiSend14bitCCdata[0] = 0;
     g_Config.LegatoModeEnabled[0] = 1;
     g_Config.VelocitySenseEnabled[0] = 0;
-    g_Config.ModulationEnabled[0] = 1;
 
     // Default values for Synth Mode [1] -- Bauer EWI synth
     g_Config.MidiBasicChannel[1] = 1;
     g_Config.MidiSysExclMsgEnabled[1] = 1;
     g_Config.MidiProgChangeEnabled[1] = 0;
     g_Config.MidiPitchBendEnabled[1] = 0;
+    g_Config.MidiModulationEnabled[1] = 0;
     g_Config.MidiPressureCCnumber[1] = 2;
     g_Config.MidiPressureInterval[1] = 5;
     g_Config.MidiSend14bitCCdata[1] = 0;
     g_Config.LegatoModeEnabled[1] = 1;
     g_Config.VelocitySenseEnabled[1] = 0;
-    g_Config.ModulationEnabled[1] = 1;
 
+    // Default values for other parameters
     g_Config.FingeringScheme = KEYING_SCHEME_REMI_STD;
     g_Config.PitchOffset = 0;
     g_Config.TouchSenseThreshold = TOUCH_THRESHOLD_DEFAULT;
     g_Config.PressureSensorSpan = 750;
-    g_Config.PitchBendSpan = 1000;
     g_Config.ModulationMaximum = 750;
-    g_Config.ModulationDeadband = 550;
+    g_Config.ModulationDeadband = 500;
 
     for (i = 0 ; i < 8 ; i++)
     {
         g_Config.PresetMidiProgram[i] = MidiProgramDefault[i];
     }
-
+    
     StoreConfigData();
 }
 

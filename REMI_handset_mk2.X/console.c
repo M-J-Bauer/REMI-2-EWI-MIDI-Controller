@@ -617,14 +617,16 @@ void  Cmnd_watch(int argCount, char * argValue[])
     while (c != ASCII_ESC)
     {
         WatchCommandExec();  // App-specific data output
+        putch(' ');
 
-        // Delay 250mS for refresh rate of 5Hz.
+        // Delay 167mS for refresh rate of approx 6Hz.
         // While waiting, any pending background tasks are executed.
         start_time = milliseconds();
-        while ((milliseconds() - start_time) < 250)
+        while ((milliseconds() - start_time) < 167)
         {
             BackgroundTaskExec();
         }
+        
         putch('\r');       // Return VDU cursor to start of output line
         if (kbhit()) c = getch();       // Check for key hit
         if (c == ASCII_CR)  { c = 0;  putNewLine(); }
@@ -646,9 +648,9 @@ void  Cmnd_watch(int argCount, char * argValue[])
 void  WatchCommandExec(void)
 {
     putstr("TouchPads: 0x");  putHexWord(TouchPadStates());
-    putstr(" | Pad0_ADC: ");  putDecimal(TouchPadGetRawADC(0), 4);
-    putstr(" | Pressure: ");  putDecimal(GetPressureRawReading(), 4);
-    putstr(" | Modul'n: ");  putDecimal(GetModulationRawReading(), 4);
+    putstr(" | Pad0_ADC: ");  putDecimal(TouchPadGetRawADC(0), 3);
+    putstr(" | Pressure.Hi: ");  putDecimal(GetMidiPressureHiByte(), 3);
+    putstr(" | Modulation.Hi: ");  putDecimal(GetMidiModulationHiByte(), 3);
 }
 
 
@@ -749,7 +751,7 @@ void  Cmnd_config( int argCount, char *argValue[] )
         putstr("  Prog. Change Enable (0,1)\n");
         putstr("pben    ");  putDecimal(g_Config.MidiPitchBendEnabled[mode], 4);
         putstr("  Pitch Bend Enable (0,1)\n");
-        putstr("moden   ");  putDecimal(g_Config.ModulationEnabled[mode], 4);
+        putstr("moden   ");  putDecimal(g_Config.MidiModulationEnabled[mode], 4);
         putstr("  Modulation (CC1) Enable (0,1)\n");
         putstr("expncc  ");  putDecimal(g_Config.MidiPressureCCnumber[mode], 4);
         putstr("  Expression CC number (0..31)\n");
@@ -773,8 +775,6 @@ void  Cmnd_config( int argCount, char *argValue[] )
         putstr("  Touch Sense Threshold (max.250)\n");       
         putstr("prspan  ");  putDecimal(g_Config.PressureSensorSpan, 4);
         putstr("  Pressure Sensor ADC Span (max.1000)\n");
-        putstr("pbspan  ");  putDecimal(g_Config.PitchBendSpan, 4);
-        putstr("  Pitch Bend ADC Span (max.1000)\n");
         putstr("modmax  ");  putDecimal(g_Config.ModulationMaximum, 4);
         putstr("  Modulation Full-scale (max.1000)\n");
         putstr("modband ");  putDecimal(g_Config.ModulationDeadband, 4);
@@ -812,7 +812,7 @@ void  Cmnd_config( int argCount, char *argValue[] )
         else if (strmatch(nickname, "legato") && paramVal >= 0 && paramVal <= 1)
             g_Config.LegatoModeEnabled[mode] = paramVal;
         else if (strmatch(nickname, "moden") && paramVal >= 0 && paramVal <= 1)
-            g_Config.ModulationEnabled[mode] = paramVal;
+            g_Config.MidiModulationEnabled[mode] = paramVal;
         else if (strmatch(nickname, "velsen") && paramVal >= 0 && paramVal <= 1)
             g_Config.VelocitySenseEnabled[mode] = paramVal;
         
@@ -831,8 +831,6 @@ void  Cmnd_config( int argCount, char *argValue[] )
             g_Config.TouchSenseThreshold = paramVal;
         else if (strmatch(nickname, "prspan") && paramVal >= 100 && paramVal <= 1000)
             g_Config.PressureSensorSpan = paramVal;
-        else if (strmatch(nickname, "pbspan") && paramVal >= 100 && paramVal <= 1000)
-            g_Config.PitchBendSpan = paramVal;
         else if (strmatch(nickname, "modmax") && paramVal >= 100 && paramVal <= 1000)
             g_Config.ModulationMaximum = paramVal;
         else if (strmatch(nickname, "modband") && paramVal >= 0 && paramVal <= 900)
@@ -888,13 +886,14 @@ void  Cmnd_diag(int argCount, char * argValue[])
     {
         putstr("Usage:  diag  <option>  [arg1] ... \n");
         putstr("<option> \n");
-        putstr(" -a :  Show MMA8451/2 accel. raw data \n");
-        putstr(" -b :  Show pitch-bend controller data \n");
+        putstr(" -a :  Show MMA8451/2 Accel. raw data \n");
+        putstr(" -b :  Show pitch Bend controller data \n");
+        putstr(" -d :  Test software Delay functions \n");
         putstr(" -e :  Show startup self-test Errors \n");
         putstr(" -m :  Show Mode Switch input state \n");
-        putstr(" -p :  Show MIDI Pressure data value (14b)\n");
-        putstr(" -s :  Show note on/off State \n");
-        putstr(" -n :  De/activate Note-On display (arg = 0|1)\n");
+        putstr(" -n :  Start/stop Note-On event log (arg = 0|1)\n");
+        putstr(" -o :  Show note On/Off state \n");
+        putstr(" -s :  Show Sensor raw ADC readings \n");
         putstr(" -t :  MIDI TX driver test (send 0x0F non-stop)\n");
         putstr(" -q :  MIDI TX Queue test (IDENT msg @ 5ms)\n");
         
@@ -903,6 +902,91 @@ void  Cmnd_diag(int argCount, char * argValue[])
 
     switch (option)
     {
+    case 'a':  // Show MMA8451/2 accelerometer raw data
+    {
+        int16  rawData;
+        
+        if (MMA8451_Setup(2) == FALSE)
+        {
+            putstr("! MMA8451/2 device not detected.\n");
+            break;
+        }
+        
+        rawData = MMA8451_RegisterRead(0x0D);  // read 'WHO_AM_I' register
+        if (rawData == 0x1A) putstr("* MMA8451 detected.\n");
+        else if (rawData == 0x2A) putstr("* MMA8452 detected.\n");
+        else  putstr("! Unknown I2C device.\n");
+        
+        putstr("Normal handset operation suspended while outputting axis \n");
+        putstr("acceleration raw data (12 bits) -- Hit any key to exit...\n");
+        
+        while (!kbhit())
+        {
+            rawData = MMA8451_RegisterRead(0x01);  // read OUT_X_MSB
+            rawData = rawData << 8;
+            rawData += MMA8451_RegisterRead(0x02);  // read OUT_X_LSB
+            putstr("   X: ");  putDecimal((rawData >> 4), 6);  // get 12 MS bits
+            
+            rawData = MMA8451_RegisterRead(0x03);  // read OUT_Y_MSB
+            rawData = rawData << 8;
+            rawData += MMA8451_RegisterRead(0x04);  // read OUT_Y_LSB
+            putstr(" | Y: ");  putDecimal((rawData >> 4), 6);  // get 12 MS bits
+            
+            rawData = MMA8451_RegisterRead(0x05);  // read OUT_Z_MSB
+            rawData = rawData << 8;
+            rawData += MMA8451_RegisterRead(0x06);  // read OUT_Z_LSB
+            putstr(" | Z: ");  putDecimal((rawData >> 4), 6);  // get 12 MS bits
+            
+            putch('\r');    // Return terminal cursor to start of line
+            Delay_ms(200);  // Delay 200ms for update rate = 5/sec
+        }
+        
+        putNewLine();
+        break;
+    }
+    case 'b':  // Show pitch-bend controller data
+    {
+//      g_DiagModeActive = TRUE; 
+//      putstr("Touch octave pad(s) to activate pitch-bend.\n");
+        putstr("Press Mod Pad to activate pitch-bend.\n");
+        putstr("Value displayed is tilt position (range +/-2000).\n");
+        putstr("Hit any key to exit...\n");
+        captureTime = milliseconds();
+        
+        while (!kbhit())
+        {
+            BackgroundTaskExec();
+            
+            if ((milliseconds() - captureTime) > 200)  // 5 times/sec
+            {
+                captureTime = milliseconds();  
+/*                
+                if ((TouchPadStates() & 0x300) == 0) 
+                    MotionSensorUpdateTask(1);  // reset "zero" position
+*/             
+                putstr("  ");  putDecimal(GetMotionSensorData(), 5);
+                putch('\r');   // Return terminal cursor to start of line
+            }
+        }
+        putNewLine();
+//      g_DiagModeActive = FALSE;
+        break;
+    }
+    case 'd':  // Test software delay functions
+    {
+        uint16  loops = 0;
+        uint32  startTime = milliseconds();
+        
+        while ((milliseconds() - startTime) < 100)  // loop for 100ms
+        {
+            Delay_x10us(10);  // delay 100us
+            loops++;
+        }
+        
+        putDecimal(loops, 6);
+        putstr(" loops;  1000 (+/-10) expected\n");
+        break;
+    }
     case 'e':  // Self-test Errors
     {
         if (g_SelfTestErrors == 0)
@@ -924,12 +1008,13 @@ void  Cmnd_diag(int argCount, char * argValue[])
         else  putstr("High (1) \n");
         break;
     }
-    case 'p':  // Show MIDI pressure level (expression CC message data value)
+    case 's':  // Show sensor raw ADC readings
     {
-        putDecimal(GetMidiPressureLevel(), 5);  putstr("\n");
+        putstr("Pressure:   ");  putDecimal(GetPressureRawReading(), 4);  putstr("\n");
+        putstr("Modulation: ");  putDecimal(GetModulationRawReading(), 4);  putstr("\n");
         break;
     }
-    case 's':  // Show note on/off state
+    case 'o':  // Show note on/off state
     {
         uint16  state = GetNoteOnOffState();
 
@@ -982,75 +1067,6 @@ void  Cmnd_diag(int argCount, char * argValue[])
 
             if (kbhit()) key = getch();  // console key hit
         }
-        break;
-    }
-    case 'a':  // Show MMA8451/2 accelerometer raw data
-    {
-        int16  rawData;
-        
-        if (MMA8451_Setup(2) == FALSE)
-        {
-            putstr("! MMA8451/2 device not detected.\n");
-            break;
-        }
-        
-        rawData = MMA8451_RegisterRead(0x0D);  // read 'WHO_AM_I' register
-        if (rawData == 0x1A) putstr("* MMA8451 detected.\n");
-        else if (rawData == 0x2A) putstr("* MMA8452 detected.\n");
-        else  putstr("! Unknown I2C device.\n");
-        
-        putstr("Normal handset operation suspended while outputting axis \n");
-        putstr("acceleration raw data (12 bits) -- Hit any key to exit...\n");
-        
-        while (!kbhit())
-        {
-            rawData = MMA8451_RegisterRead(0x01);  // read OUT_X_MSB
-            rawData = rawData << 8;
-            rawData += MMA8451_RegisterRead(0x02);  // read OUT_X_LSB
-            putstr("   X: ");  putDecimal((rawData >> 4), 6);  // get 12 MS bits
-            
-            rawData = MMA8451_RegisterRead(0x03);  // read OUT_Y_MSB
-            rawData = rawData << 8;
-            rawData += MMA8451_RegisterRead(0x04);  // read OUT_Y_LSB
-            putstr(" | Y: ");  putDecimal((rawData >> 4), 6);  // get 12 MS bits
-            
-            rawData = MMA8451_RegisterRead(0x05);  // read OUT_Z_MSB
-            rawData = rawData << 8;
-            rawData += MMA8451_RegisterRead(0x06);  // read OUT_Z_LSB
-            putstr(" | Z: ");  putDecimal((rawData >> 4), 6);  // get 12 MS bits
-            
-            putch('\r');    // Return terminal cursor to start of line
-            Delay_ms(200);  // Delay 200ms for update rate = 5/sec
-        }
-        
-        putNewLine();
-        break;
-    }
-    case 'b':  // Show pitch-bend controller data
-    {
-        g_DiagModeActive = TRUE;  // Inhibit Auto-zero task in main loop
-        putstr("Touch octave pad(s) to show position value (not scaled).\n");
-        putstr("Hit any key to exit...\n");
-        captureTime = milliseconds();
-        
-        while (!kbhit())
-        {
-            BackgroundTaskExec();  // Auto-zero task inhibited in diag mode
-            
-            if ((milliseconds() - captureTime) > 200)  // 5 times/sec
-            {
-                captureTime = milliseconds();  
-                
-                if ((TouchPadStates() & 0x300) == 0) 
-                    MotionSensorUpdateTask(1);  // reset "zero" position
-                
-                putstr("  ");  putDecimal(GetMotionSensorData(), 6);
-                putch('\r');   // Return terminal cursor to start of line
-            }
-        }
-        
-        putNewLine();
-        g_DiagModeActive = FALSE;
         break;
     }
     } // end switch

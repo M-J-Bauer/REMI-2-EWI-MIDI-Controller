@@ -222,7 +222,7 @@ void  TouchPadScan()
     for (pad = 0 ; pad < TOUCH_PADS_MAX ; pad++)
     {
         m_FilteredReading[pad] -= m_FilteredReading[pad] >> 6;  // (accum / 64)
-        m_FilteredReading[pad] += m_ADCRawResult[pad] << 2;     // (raw_rdg * 256) / 64
+        m_FilteredReading[pad] += m_ADCRawResult[pad] << 2;     // > (raw_rdg * 256) / 64
     }
 */    
     // Update pad on/off states according to threshold value...
