@@ -127,12 +127,24 @@ position approximately in the middle of this range.
 For best results, the player should angle the handset about 45 degrees from the
 horizontal whenever no note is playing, to set the "centre/zero" position.
 
-v1.4.42  07-APR-2023
+v1.4.45  09-APR-2023
 ````````````````````
 Improved Pitch-bend operation...
-Imposed dead-band = 200 units either side of centre "zero" pos'n.
-Reduced time-lag due to smoothing algorithm.
+Imposed dead-band either side of centre "zero" pos'n.
+Tested square-law transform... Removed as it made pitch-bend response worse.
+Reduced pitch-bend time-lag in sensor data smoothing algorithm.
 
+Modified breath-pressure and modulation MIDI CC message protocol to comply better
+with the MIDI specification. If 14-bit data is enabled, the MSB is sent only if the data
+MSB changes. Likewise, the LSB is sent only if the data LSB changes.
+
+v1.4.45  15-APR-2023
+````````````````````
+Improved Pitch-bend operation...
+Using Mod'n Pad to activate Pitch Bend on demand. Better than auto-zero? ... TBA
+
+To Do:  Config param to select 'Pitch Bend Activation Switch'...
+        which may be Mod Pad, touch-pad at LH4, dedicated button, etc.
 
 __________________________________________________________________________________________
 
