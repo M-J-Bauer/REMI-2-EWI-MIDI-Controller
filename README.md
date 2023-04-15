@@ -9,7 +9,7 @@ A low-cost ($10) MIDI-USB adapter allows the REMI to be used with a "virtual syn
 Latest firmware supports a choice of recorder-like fingering schemes including emulation of Baroque (German and English) fingering. 
 The "standard" REMI fingering is designed to be easy to learn, for beginners with no previous experience of wind instruments.
 
-*** Firmware update (v1.4.45++) supports PITCH BEND using motion sensor MMA8451/2 (3-axis accelerometer). ***
+*** New firmware update (v1.4.50) supports PITCH BEND using a motion sensor MMA8451/2 (3-axis accelerometer). Pitch bend is activated by pressing on the Modulation Pad (force sensor), which acts as a touch-switch. MIDI modulation (CC1) messages can be disabled by a config option. A future firmware version will support other options to activate pitch bend, e.g. an extra touch-pad (at LH4 if not otherwise used) or a push-button switch operated by the RH thumb.
 
 A full description of the project can be found in the doc folder. See also: http://www.mjbauer.biz/REMI_Intro.htm
 
