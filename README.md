@@ -4,7 +4,6 @@ based on PIC18F45K22 (or PIC18F25K22) micro-controller, designed as a DIY projec
 
 REMI 2 is a simple MIDI controller with standard MIDI OUT connection (5-pin DIN socket). It does not have a built-in sound synthesizer.
 A low-cost ($10) MIDI-USB adapter allows the REMI to be used with a "virtual synthesizer" (software app) running on a computer or mobile device.
-(If you prefer an "all-in-one" EWI design, take a look at REMI 3.) 
 
 Latest firmware supports a choice of recorder-like fingering schemes including emulation of Baroque (German and English) fingering. 
 The "standard" REMI fingering is designed to be easy to learn, for beginners with no previous experience of wind instruments.
