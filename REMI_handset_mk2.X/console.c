@@ -23,7 +23,7 @@
 static  char   CLIprompt[] = "\r> ";  // Command line prompt
 static  char   CmndLine[CMND_LINE_MAX_LEN+2];  // Command line buffer
 static  char  *CmndLinePtr;   // Pointer into Cmnd Line buffer
-static  int    CmndLineLen;   // Cmnd line length (char count)
+static  uint8  CmndLineLen;   // Cmnd line length (char count)
 static  char   CmndHistoryBuffer[CMD_HIST_BUF_SIZE][CMND_LINE_MAX_LEN+2];
 static  int16  CmndHistoryMarker;  // Index to next free place in Command History Buf
 static  int16  CmndRecallMarker;   // Index of previous command to be recalled
@@ -279,7 +279,7 @@ void  RecallCommand(void)
     strncpy(CmndLine, CmndHistoryBuffer[CmndRecallMarker], CMND_LINE_MAX_LEN);
     if (CmndRecallMarker == 0) CmndRecallMarker = CMD_HIST_BUF_SIZE;
     --CmndRecallMarker;
-    CmndLineLen = strlen(CmndLine);
+    CmndLineLen = (uint8) strlen(CmndLine);
     CmndLinePtr = CmndLine + CmndLineLen;
     *CmndLinePtr = 0;
     putstr(CmndLine);

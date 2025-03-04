@@ -8,7 +8,7 @@
  * ``````````
  * Hardware:    REMI mk2 micro-controller board (PIC18F..K22)
  * `````````
- * Compiler:    Microchip MPLAB XC8 (free version) under MPLAB'X IDE
+ * Compiler:    Microchip MPLAB XC8 (free version) under MPLAB'X IDE v6
  * `````````
  * Notes:       Set up XC8 Linker to exclude on-chip ROM (flash PM) at 0x7F80-0x7FFF.
  * ``````       This space is reserved to store user configuration data (from g_Config).
@@ -136,7 +136,7 @@ void  main(void)
     // Determine the quiescent pressure level and note on/off thresholds
     m_PressureQuiescent = m_PressureSensorReading;
     m_PressureThresholdNoteOn = m_PressureQuiescent + (g_Config.PressureSensorSpan * 5) / 100;
-    m_PressureThresholdNoteOff = m_PressureQuiescent + (g_Config.PressureSensorSpan * 4) / 100;
+    m_PressureThresholdNoteOff = m_PressureQuiescent + (g_Config.PressureSensorSpan * 3) / 100;
 
     if (m_PressureQuiescent < 8 || m_PressureQuiescent > 255)  // sensor fault
         g_SelfTestErrors |= (1 << TEST_PRESSURE_SENSOR);
@@ -177,11 +177,10 @@ void  BackgroundTaskExec()
     {
         v_RTI_flag_5ms_task = 0;
         ReadAnalogSensors();
-        m_TouchPadStates = TouchPadStates() & 0x3FF;
-
         CalcMidiPressureLevel();
         CalcModulationPadForce();
         
+        m_TouchPadStates = TouchPadStates() & 0x3FF;
         NoteOnOffStateTask();
         PresetButtonMonitor();
         if (m_PitchBendSensorID != 0) MotionSensorUpdateTask(0);
@@ -411,7 +410,6 @@ PRIVATE  void  NoteOnOffStateTask()
     bool    isValidNote = (octavePads != 0) && (top3Fingers != 0);
     uint8   channel = g_Config.MidiBasicChannel[m_SynthMode];
     bool    sendNoteOn = 0;
-    uint16  pressure_14b = ((uint16)m_Pressure_Hi << 7) + m_Pressure_Lo;
     uint8   velocity = m_Pressure_Hi;
 
     if (g_Config.FingeringScheme >= KEYING_SCHEME_BAROQUE) isValidNote = TRUE;
@@ -420,7 +418,7 @@ PRIVATE  void  NoteOnOffStateTask()
     {
     case NOTE_OFF_IDLE:
     {
-        // A new note is triggered when the pressure sensor signal rises above the
+        // A new note is triggered when the pressure sensor signal rises above
         // NoteOnPressureThreshold (raw ADC count).
         if (isValidNote && (m_PressureSensorReading >= m_PressureThresholdNoteOn))
         {
@@ -429,15 +427,17 @@ PRIVATE  void  NoteOnOffStateTask()
         }
 
         if (m_TimeSinceLastNoteOff_ms < 50000) m_TimeSinceLastNoteOff_ms += 5;
+        if (m_TimeSinceLastNoteOff_ms > NOTE_OFF_TO_ZERO_EXPRN)
+            m_Pressure_Hi = m_Pressure_Lo = 0;  // Mute the connected synth
         break;
     }
     case NOTE_ON_PENDING:
     {
-        m_TimeSinceLastNoteOff_ms = 0;
+        m_TimeSinceLastNoteOff_ms = 0;  // timer stays reset (0) while note playing
 
         if (!g_Config.VelocitySenseEnabled[m_SynthMode])  // use fixed velocity value
         {
-            velocity = 64;
+            velocity = 90;
             sendNoteOn = 1;
         }
         else if (stateTimer_ms >= NOTE_ON_VELOCITY_DELAY)  // ready to acquire velocity
@@ -461,45 +461,36 @@ PRIVATE  void  NoteOnOffStateTask()
     case NOTE_ON_PLAYING:
     {
         // A Note-off is sent when the pressure sensor signal falls below the Note-Off
-        // pressure threshold.
+        // pressure threshold.  In REMI sys.ex. mode, note number 0 => any note.
         if (m_PressureSensorReading < m_PressureThresholdNoteOff)
         {
-            MIDI_SendNoteOff(channel, noteNumPlaying);
-            m_NoteOnOffState = NOTE_OFF_IDLE;
+            if (g_Config.MidiSysExclMsgEnabled[m_SynthMode])  // REMI sys.ex mode
+                MIDI_SendNoteOff(channel, 0);  // Rogue scheme for REMI Synth mk2
+            else  MIDI_SendNoteOff(channel, noteNumPlaying);  // MIDI standard
+            
+            m_NoteOnOffState = NOTE_OFF_IDLE;  // Note terminated
             break;
         }
-
         // Look for a change in fingering pattern with any valid note selected;
         // this signals a "Legato" note change.  Remain in this state.
         if (isValidNote && (noteNumber != noteNumPlaying))
         {
-            if (g_Config.LegatoModeEnabled[m_SynthMode])  // Synth is MIDI compliant
+            if (g_Config.MidiSysExclMsgEnabled[m_SynthMode])   // REMI sys.ex mode
+            {
+                MIDI_SendNoteOn(channel, noteNumber, velocity);  // new note on
+                // Rogue scheme for REMI Synth mk2 only -- No Note-Off msg sent!
+            }
+            else if (g_Config.LegatoModeEnabled[m_SynthMode])  // MIDI standard
             {
                 MIDI_SendNoteOn(channel, noteNumber, velocity);  // new note on
                 MIDI_SendNoteOff(channel, noteNumPlaying);       // old note off
             }
-            else  // Synth is NOT MIDI standard compliant (and/or POLY mode enabled)
+            else  // Synth is not MIDI compliant (and/or using POLY mode)
             {
                 MIDI_SendNoteOff(channel, noteNumPlaying);       // old note off
                 MIDI_SendNoteOn(channel, noteNumber, velocity);  // new note on
             }
             noteNumPlaying = noteNumber;
-        }
-
-        // If the pressure update interval has expired, send expression CC message.
-        if (PressureUpdateTimer_ms >= g_Config.MidiPressureInterval[m_SynthMode])
-        {
-            PressureUpdateTimer_ms = 0;
-            SendBreathPressureUpdate();
-        }
-
-        // If the modulation controller update interval has expired,
-        // send modulation CC msg (if enabled) and pitch-bend msg (if enabled).
-        if (controllerUpdateTimer_ms >= CONTROLLER_MSG_INTERVAL)
-        {
-            controllerUpdateTimer_ms = 0;
-            if (g_Config.MidiModulationEnabled[m_SynthMode]) SendModulationUpdate();
-            if (g_Config.MidiPitchBendEnabled[m_SynthMode]) SendPitchBendUpdate();
         }
         break;
     }
@@ -508,6 +499,26 @@ PRIVATE  void  NoteOnOffStateTask()
         break;
 
     }  // end switch
+    
+    // Send pressure/expression messages while a note is playing, and for a short
+    // time after a Note-Off message is sent...
+    if (m_TimeSinceLastNoteOff_ms < (NOTE_OFF_TO_ZERO_EXPRN + 50))
+    {
+        // If the pressure update interval has expired, send expression CC message.
+        if (PressureUpdateTimer_ms >= g_Config.MidiPressureInterval[m_SynthMode])
+        {
+            PressureUpdateTimer_ms = 0;
+            SendBreathPressureUpdate();
+        }
+        // If the modulation controller update interval has expired,
+        // send modulation CC msg (if enabled) and pitch-bend msg (if enabled).
+        if (controllerUpdateTimer_ms >= CONTROLLER_MSG_INTERVAL)
+        {
+            controllerUpdateTimer_ms = 0;
+            if (g_Config.MidiModulationEnabled[m_SynthMode]) SendModulationUpdate();
+            if (g_Config.MidiPitchBendEnabled[m_SynthMode]) SendPitchBendUpdate();
+        }
+    }
 
     stateTimer_ms += 5;
     PressureUpdateTimer_ms += 5;
@@ -523,7 +534,7 @@ PRIVATE  void  NoteOnOffStateTask()
  * If MidiPressureCCnumber is zero (0), pressure messages will not be transmitted.
  * 
  * A configuration parameter, g_Config.MidiSend14bitCCdata, if non-zero will cause
- * the data value sent to use 14-bit (2 byte) format, allowing fine control of the effect.
+ * the data value sent to use 14-bit (2 byte) format, allowing fine control.
  *
  * A MIDI Breath Pressure (Control Change) message is sent only if the Pressure data
  * has changed since the last call to this function.
@@ -1115,25 +1126,23 @@ bool  FetchConfigData()
  */
 void  DefaultConfigData(void)
 {
-    static const  uint8  MidiProgramDefault[] =
-                   { 67, 75, 72, 69, 74, 17, 20, 23 };
-    //   Preset #: [  8,  1,  2,  3,  4,  5,  6,  7 ]
-
+    // Bauer 'Sigma-6' Synth Preset ............. 8, 1, 2, 3, 4, 5, 6,  7
+    static const  uint8  MidiProgramDefault[] = { 0, 4, 5, 6, 7, 8, 9, 14 };
     uint8  i;
 
     // Default values for Synth Mode [0] -- Generic MIDI synth
     g_Config.MidiBasicChannel[0] = 1;
     g_Config.MidiSysExclMsgEnabled[0] = 0;
-    g_Config.MidiProgChangeEnabled[0] = 0;
+    g_Config.MidiProgChangeEnabled[0] = 1;
     g_Config.MidiPitchBendEnabled[0] = 0;
     g_Config.MidiModulationEnabled[0] = 0;
     g_Config.MidiPressureCCnumber[0] = 2;
     g_Config.MidiPressureInterval[0] = 5;
-    g_Config.MidiSend14bitCCdata[0] = 0;
+    g_Config.MidiSend14bitCCdata[0] = 1;
     g_Config.LegatoModeEnabled[0] = 1;
     g_Config.VelocitySenseEnabled[0] = 0;
 
-    // Default values for Synth Mode [1] -- Bauer EWI synth
+    // Default values for Synth Mode [1] -- Bauer REMI synth
     g_Config.MidiBasicChannel[1] = 1;
     g_Config.MidiSysExclMsgEnabled[1] = 1;
     g_Config.MidiProgChangeEnabled[1] = 0;

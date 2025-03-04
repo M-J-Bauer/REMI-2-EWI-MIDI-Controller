@@ -22,7 +22,7 @@ static volatile uint8 dummy;
 //
 void  EUSART1_init(uint16 baudrate)
 {
-    uint16  brg = F_OSC_Hz / ((uint32)baudrate * 4) - 1;  // baud rate register value
+    uint16  brg = (uint16) ((long)F_OSC_Hz / ((long)baudrate * 4) - 1); 
     
     // ABDOVF no_overflow; CKTXP async_noninverted_sync_fallingedge; BRG16 16bit_generator; 
     // WUE disabled; ABDEN disabled; DTRXP not_inverted; 
@@ -134,7 +134,7 @@ void  EUSART1_WriteString( char *pstr )
 //
 void  EUSART2_init(uint16 baudrate)
 {
-    uint16  brg = F_OSC_Hz / ((uint32)baudrate * 4) - 1;  // baud rate register value
+    uint16  brg = (uint16) ((long)F_OSC_Hz / ((long)baudrate * 4) - 1); 
     
     // ABDOVF no_overflow; CKTXP async_noninverted_sync_fallingedge; BRG16 16bit_generator; 
     // WUE disabled; ABDEN disabled; DTRXP not_inverted; 

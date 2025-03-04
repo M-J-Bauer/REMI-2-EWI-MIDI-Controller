@@ -20,8 +20,13 @@
 //                       FIRMWARE VERSION NUMBER AND BUILD OPTIONS
 //
 #define BUILD_VER_MAJOR   1
-#define BUILD_VER_MINOR   4
-#define BUILD_VER_DEBUG   50
+#define BUILD_VER_MINOR   5
+#define BUILD_VER_DEBUG   0
+//
+#define NOTE_ON_VELOCITY_DELAY     10  // Delay from note trigger to get velocity (ms))
+#define NOTE_OFF_TO_ZERO_EXPRN    500  // Delay from Note-Off to zero Expression (ms)
+#define CONTROLLER_MSG_INTERVAL    30  // Modulation & Pitch-bend message interval (ms)
+#define PITCH_BEND_DEAD_BAND       50  // Full-scale = +/-1000 units
 //
 // =======================================================================================
 
@@ -30,10 +35,6 @@
 #define KEYING_SCHEME_REMI_ALT    1    // Alternate EWI keying scheme (LH4)
 #define KEYING_SCHEME_BAROQUE     2    // Baroque fingering emulation (RH5)
 #define KEYING_SCHEME_BAROQUE_B   3    // Baroque fingering emulation (LH4)
-
-#define NOTE_ON_VELOCITY_DELAY   15    // Delay from note trigger to get velocity (ms))
-#define CONTROLLER_MSG_INTERVAL  30    // Modulation & Pitch-bend message interval (ms)
-#define PITCH_BEND_DEAD_BAND     50    // Full-scale = +/-1000 units
 
 // MIDI System Exclusive message types unique to REMI...
 #define REMI_PRESET_MSG   0x07     // 'REMI PRESET' msg type (set Preset #)
