@@ -138,18 +138,39 @@ Modified breath-pressure and modulation MIDI CC message protocol to comply bette
 with the MIDI specification. If 14-bit data is enabled, the MSB is sent only if the data
 MSB changes. Likewise, the LSB is sent only if the data LSB changes.
 
-v1.4.45  15-APR-2023
+v1.4.50  15-APR-2023
 ````````````````````
 Improved Pitch-bend operation...
-Using Mod'n Pad to activate Pitch Bend on demand. Better than auto-zero? ... TBA
+Using Mod'n Pad to activate Pitch Bend on demand. Auto-zero was problematic.
 
-To Do:  Config param to select 'Pitch Bend Activation Switch'...
-        which may be Mod Pad, touch-pad at LH4, dedicated button, etc.
+v1.4.55  01-MAY-2023
+````````````````````
+Modified Legato operation in case where "REMI Sys-Ex Msg" is enabled (only).
+Legato Note-On (new note) message is not followed by Note-Off (old note).
+Note-Off message (to terminate any note playing) has MIDI note number = 0.
+The modified scheme is compatible with REMI Synth mk2 (PIC32) firmware v3.0.22++.
+If REMI Sys-Ex messages are disabled, the REMI handset conforms to the MIDI 1.0
+specification for legato operation.
+
+v1.5.00  04-MAR-2025
+````````````````````
+MIDI Breath Pressure (Expression) CC messages persist for a short time (~500ms) after
+a Note-Off message is sent. This is done because the expression value may not be zero,
+in general, at the instant a note is terminated. The synth may need to respond to
+changes in expression level for a short time after Note-Off, i.e. "ampld release".
+At the end of this delay, the final Pressure/Expression data value is set to zero, 
+so that the attached synth will be muted.
+
 
 __________________________________________________________________________________________
 
 To Do: [future revisions]
 `````````````````````````
+* Expression messages to persist for 1 sec (?) after Note-Off, then send data = 0.
+
+* Config param to select 'Pitch Bend Activation Switch'...
+  which may be Mod Pad, touch-pad at LH4, dedicated mech. button, etc.
+
 * Support alternate build option using PIC18F25K22 (28-pin DIP).
 
 * Bootloader using USB/serial port for firmware update without PICkit_3.
