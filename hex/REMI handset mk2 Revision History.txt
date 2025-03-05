@@ -166,8 +166,6 @@ ________________________________________________________________________________
 
 To Do: [future revisions]
 `````````````````````````
-* Expression messages to persist for 1 sec (?) after Note-Off, then send data = 0.
-
 * Config param to select 'Pitch Bend Activation Switch'...
   which may be Mod Pad, touch-pad at LH4, dedicated mech. button, etc.
 
