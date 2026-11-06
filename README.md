@@ -19,3 +19,14 @@ Detailed construction notes and user manual can be found on the project web-page
 https://www.mjbauer.biz/Build_the_REMI_mk2.htm
 
 _You are welcome to post comments or ask questions in the Discussions section._
+
+# Firmware Installation
+A PIC programming tool, e.g. Microchip PICkit-3, is required to install the REMI application firmware.
+Low-cost PICkit-3 clones are available from online suppliers via AliExpress, eBay, etc.
+<img width="364" height="182" alt="PICkit3-pic" src="https://github.com/user-attachments/assets/b39bf920-88e0-4e0e-998b-f5d08be27e60" />
+
+Ready-built firmware files are available here in the folder "hex". Download the hex file appropriate 
+for your REMI hardware configuration. 
+Download MPLAB.X IDE and IPE (PIC programmer app) from Microchip's website. (It's free.) Install the 'IPE' component only.
+The full IDE is not needed. Follow the IPE embedded instructions to use the PIC programmer app. Be sure to specify 'PICkit-3'
+as your connected programming tool.
