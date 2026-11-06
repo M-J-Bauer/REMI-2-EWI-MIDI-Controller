@@ -11,8 +11,8 @@ It can be used to play any MIDI synth or sound module with MIDI input.
 A low-cost ($10) MIDI-USB adapter allows the REMI to be used with a "virtual synthesizer"
 (software app) running on a computer or mobile device.
 
-Latest firmware supports a choice of recorder-like fingering schemes including close emulation of 
-Baroque (German and English) fingering. The "standard" REMI fingering is designed to be easy to learn, 
+Latest firmware supports a choice of recorder fingering schemes including close emulation of 
+Baroque (German and English) fingering. The "standard" EWI fingering is designed to be easy to learn, 
 for beginners with no previous experience of wind instruments.
 
 Detailed construction notes and user manual can be found on the project web-page, here:
@@ -20,9 +20,11 @@ https://www.mjbauer.biz/Build_the_REMI_mk2.htm
 
 _You are welcome to post comments or ask questions in the Discussions section._
 
-# Firmware Installation
+__Firmware Installation__
+
 A PIC programming tool, e.g. Microchip PICkit-3, is required to install the REMI application firmware.
 Low-cost PICkit-3 clones are available from online suppliers via AliExpress, eBay, etc.
+
 <img width="364" height="182" alt="PICkit3-pic" src="https://github.com/user-attachments/assets/b39bf920-88e0-4e0e-998b-f5d08be27e60" />
 
 Ready-built firmware files are available here in the folder "hex". Download the hex file appropriate 
